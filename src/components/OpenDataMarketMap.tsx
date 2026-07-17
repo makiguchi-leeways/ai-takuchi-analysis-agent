@@ -46,6 +46,10 @@ type GeoJsonFeatureCollection = {
   metadata?: {
     source?: "gate-api" | "sample";
     reason?: string;
+    upstream?: {
+      status?: number;
+      detail?: string;
+    };
     layer?: OpenDataLayerDefinition;
   };
 };
@@ -281,7 +285,7 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
 
       <div className="map-status-row">
         <span>{loading ? "レイヤー読込中" : `${enabledLayerIds.length}件のレイヤーを表示`}</span>
-        {sampleLayerActive ? <span>Gate APIキー未設定時はプレビューGeoJSONを表示</span> : null}
+        {sampleLayerActive ? <span>取得できないレイヤーはプレビューGeoJSONを表示</span> : null}
         {errorMessage ? <span className="map-error">{errorMessage}</span> : null}
       </div>
     </div>

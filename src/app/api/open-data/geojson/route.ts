@@ -40,24 +40,24 @@ export async function GET(request: NextRequest) {
     const body = await response.text();
     if (!response.ok) {
       return NextResponse.json(
-        {
-          error: "Failed to fetch Gate open-data layer.",
+        buildFallbackGeoJson(layer, bounds, "gate-api-error", {
           status: response.status,
           detail: body.slice(0, 240)
-        },
-        { status: response.status }
+        })
       );
     }
 
-    const geoJson = JSON.parse(body);
-    return NextResponse.json(withMetadata(geoJson, layer, "gate-api"));
+    try {
+      const geoJson = JSON.parse(body);
+      return NextResponse.json(withMetadata(geoJson, layer, "gate-api"));
+    } catch {
+      return NextResponse.json(buildFallbackGeoJson(layer, bounds, "invalid-gate-api-json"));
+    }
   } catch (error) {
     return NextResponse.json(
-      {
-        error: "Gate open-data layer request failed.",
+      buildFallbackGeoJson(layer, bounds, "gate-api-request-failed", {
         detail: error instanceof Error ? error.message : "unknown error"
-      },
-      { status: 502 }
+      })
     );
   }
 }
@@ -95,7 +95,12 @@ function withMetadata(geoJson: unknown, layer: OpenDataLayerDefinition, source: 
   return geoJson;
 }
 
-function buildFallbackGeoJson(layer: OpenDataLayerDefinition, bounds: Bounds, reason: string) {
+function buildFallbackGeoJson(
+  layer: OpenDataLayerDefinition,
+  bounds: Bounds,
+  reason: string,
+  upstream?: { status?: number; detail?: string }
+) {
   const [south, west, north, east] = bounds;
   const latStep = (north - south) / 2;
   const lngStep = (east - west) / 2;
@@ -135,6 +140,7 @@ function buildFallbackGeoJson(layer: OpenDataLayerDefinition, bounds: Bounds, re
     metadata: {
       source: "sample",
       reason,
+      upstream,
       layer
     },
     features

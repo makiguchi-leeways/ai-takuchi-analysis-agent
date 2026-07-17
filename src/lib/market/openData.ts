@@ -57,7 +57,7 @@ export const OPEN_DATA_LAYERS: OpenDataLayerDefinition[] = [
     id: "elementary-school",
     label: "小学校区",
     category: "school",
-    dataName: "elementary_school_boundaries",
+    dataName: "elementary_school",
     dataSourceYear: "2021",
     color: "#2f7f9f",
     fillOpacity: 0.1,
