@@ -119,6 +119,12 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
   const missingApiKeyActive = fallbackLayers.some((layer) => collections[layer.id]?.metadata?.reason === "missing-api-key");
 
   useEffect(() => {
+    setCenter(initialView.center);
+    setZoom(initialView.zoom);
+    setFeatureInfo(null);
+  }, [initialView]);
+
+  useEffect(() => {
     const element = mapRef.current;
     if (!element) return;
 

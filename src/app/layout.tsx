@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "攻める市区町村 市場分析MVP",
-  description: "ハウスメーカー向け市場分析レポートWebアプリ"
+  title: "Gate 宅地需給分析",
+  description: "地図ベースの宅地需給分析ワークスペース"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
