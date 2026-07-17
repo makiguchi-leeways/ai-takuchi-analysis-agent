@@ -1,7 +1,9 @@
+import { request as httpsRequest } from "node:https";
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenDataLayer, type OpenDataLayerDefinition } from "@/lib/market/openData";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const DEFAULT_GATE_API_BASE_URL = "https://staging-api.gate.estate";
 
@@ -16,6 +18,10 @@ type UpstreamDiagnostics = {
   path?: string;
   dataName?: string;
   dataSourceYear?: string;
+};
+type GateApiResponse = {
+  status: number;
+  body: string;
 };
 
 export async function GET(request: NextRequest) {
@@ -41,27 +47,20 @@ export async function GET(request: NextRequest) {
 
   try {
     upstreamUrl = buildGateApiUrl(layer, bounds, searchParams.get("year"));
-    const response = await fetch(upstreamUrl.toString(), {
-      headers: {
-        accept: "application/json",
-        "x-api-key": apiKey
-      },
-      cache: "no-store"
-    });
+    const response = await requestGateApi(upstreamUrl, apiKey);
 
-    const body = await response.text();
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       return NextResponse.json(
         buildFallbackGeoJson(layer, bounds, "gate-api-error", {
           status: response.status,
-          detail: body.slice(0, 240),
+          detail: response.body.slice(0, 240),
           ...describeGateRequest(upstreamUrl, layer)
         })
       );
     }
 
     try {
-      const geoJson = JSON.parse(body);
+      const geoJson = JSON.parse(response.body);
       return NextResponse.json(withMetadata(geoJson, layer, "gate-api"));
     } catch {
       return NextResponse.json(
@@ -91,6 +90,44 @@ function normalizeGateApiBaseUrl(value: string | undefined) {
   return originOnly.endsWith("/") ? originOnly : `${originOnly}/`;
 }
 
+function requestGateApi(upstreamUrl: URL, apiKey: string) {
+  if (upstreamUrl.protocol !== "https:") {
+    throw new Error(`Unsupported Gate API protocol: ${upstreamUrl.protocol}`);
+  }
+
+  return new Promise<GateApiResponse>((resolve, reject) => {
+    const request = httpsRequest(
+      upstreamUrl.toString(),
+      {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          "x-api-key": apiKey
+        },
+        timeout: 15000
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer | string) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        response.on("end", () => {
+          resolve({
+            status: response.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8")
+          });
+        });
+      }
+    );
+
+    request.on("timeout", () => {
+      request.destroy(new Error("Gate API request timed out."));
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
+
 function describeGateRequest(upstreamUrl: URL | null, layer: OpenDataLayerDefinition): UpstreamDiagnostics {
   return {
     host: upstreamUrl?.host,
@@ -105,6 +142,12 @@ function describeGateError(error: unknown, upstreamUrl: URL | null, layer: OpenD
     detail: error instanceof Error ? error.message : "unknown error",
     ...describeGateRequest(upstreamUrl, layer)
   };
+
+  if (error instanceof Error) {
+    const errorRecord = error as Error & Record<string, unknown>;
+    if (typeof errorRecord.code === "string") diagnostics.causeCode = errorRecord.code;
+    if (typeof errorRecord.hostname === "string") diagnostics.causeHostname = errorRecord.hostname;
+  }
 
   if (error instanceof Error && error.cause && typeof error.cause === "object") {
     const cause = error.cause as Record<string, unknown>;
