@@ -49,6 +49,24 @@ npm run dev
 
 起動後、`http://127.0.0.1:3000` を開きます。
 
+## GitHub / Vercel 公開
+
+このアプリは単体のNext.jsアプリとして公開できます。GitHubの新規リポジトリへpushしたあと、VercelでそのリポジトリをImportしてください。
+
+```bash
+git remote add origin https://github.com/<owner>/ai-takuchi-analysis-agent.git
+git push -u origin main
+```
+
+VercelのProject Settingsでは、必要に応じて以下の環境変数を設定します。
+
+```bash
+GATE_API_KEY=...
+GATE_API_BASE_URL=https://enterprise-staging-api.gate.estate
+```
+
+`GATE_API_KEY` を設定しない場合も、プレビューGeoJSONで地図レイヤーの表示確認はできます。
+
 ## データフォルダの指定方法
 
 データ棚卸し対象は `DATA_CATALOG_ROOTS` にコロン区切りで指定します。

@@ -1,7 +1,7 @@
 {
-  "name": "housing-market-report-mvp",
+  "name": "ai-takuchi-analysis-agent",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
