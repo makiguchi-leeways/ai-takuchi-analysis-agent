@@ -186,7 +186,7 @@ export function FullReport({ report }: { report: MarketReportType }) {
         </div>
       </section>
 
-      <section className="report-section">
+      <section className="report-section report-map-section">
         <div className="section-heading">
           <Building2 size={22} />
           <div>

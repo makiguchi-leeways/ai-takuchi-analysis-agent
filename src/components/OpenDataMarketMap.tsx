@@ -74,6 +74,29 @@ type DragState = {
   centerWorld: { x: number; y: number };
 };
 
+type FeatureInfoRow = {
+  label: string;
+  value: string;
+};
+
+type FeatureInfoState = {
+  layerLabel: string;
+  color: string;
+  title: string;
+  rows: FeatureInfoRow[];
+  x: number;
+  y: number;
+  pinned: boolean;
+};
+
+type FeatureInteractionHandlers = {
+  onPointerDown: (event: ReactPointerEvent<SVGElement>) => void;
+  onPointerEnter: (event: ReactPointerEvent<SVGElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<SVGElement>) => void;
+  onPointerLeave: () => void;
+  onPointerUp: (event: ReactPointerEvent<SVGElement>) => void;
+};
+
 export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
   const initialView = useMemo(() => resolveInitialView(areas), [areas]);
   const [center, setCenter] = useState(initialView.center);
@@ -85,6 +108,7 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [featureInfo, setFeatureInfo] = useState<FeatureInfoState | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
 
   const view = useMemo<MapView>(() => ({ center, zoom }), [center, zoom]);
@@ -123,20 +147,36 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
     Promise.all(
       enabledLayerIds.map(async (layerId) => {
         const params = new URLSearchParams({ layer: layerId, bounds: boundsParam });
-        const response = await fetch(`/api/open-data/geojson?${params.toString()}`, { cache: "no-store" });
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(payload.error ?? `${layerId} could not be loaded.`);
+        try {
+          const response = await fetch(`/api/open-data/geojson?${params.toString()}`, { cache: "no-store" });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error ?? `${layerId} could not be loaded.`);
+          }
+          return { layerId, payload: payload as GeoJsonFeatureCollection };
+        } catch (error) {
+          return {
+            layerId,
+            error: error instanceof Error ? error.message : "取得に失敗しました。"
+          };
         }
-        return [layerId, payload as GeoJsonFeatureCollection] as const;
       })
     )
-      .then((entries) => {
+      .then((results) => {
         if (canceled) return;
+        const succeeded = results.filter((result): result is { layerId: string; payload: GeoJsonFeatureCollection } => "payload" in result);
+        const failed = results.filter((result): result is { layerId: string; error: string } => "error" in result);
+
         setCollections((current) => ({
           ...current,
-          ...Object.fromEntries(entries)
+          ...Object.fromEntries(succeeded.map((result) => [result.layerId, result.payload]))
         }));
+
+        setErrorMessage(
+          failed.length > 0
+            ? `取得できないレイヤー: ${failed.map((result) => getOpenDataLayerLabel(result.layerId)).join("、")}`
+            : null
+        );
       })
       .catch((error) => {
         if (canceled) return;
@@ -165,6 +205,7 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
     if (target.closest("a,button")) return;
+    setFeatureInfo(null);
     event.currentTarget.setPointerCapture(event.pointerId);
     setDragState({
       pointerId: event.pointerId,
@@ -185,6 +226,52 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
     if (dragState?.pointerId === event.pointerId) {
       setDragState(null);
     }
+  }
+
+  function showFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition, event: ReactPointerEvent<SVGElement>, pinned: boolean) {
+    event.stopPropagation();
+    const point = tooltipPosition(event);
+    const info = buildFeatureInfo(feature, layer);
+    setFeatureInfo({
+      ...info,
+      ...point,
+      pinned
+    });
+  }
+
+  function moveFeatureInfo(event: ReactPointerEvent<SVGElement>) {
+    event.stopPropagation();
+    setFeatureInfo((current) => {
+      if (!current || current.pinned) return current;
+      return {
+        ...current,
+        ...tooltipPosition(event)
+      };
+    });
+  }
+
+  function hideFeatureInfo() {
+    setFeatureInfo((current) => (current?.pinned ? current : null));
+  }
+
+  function tooltipPosition(event: ReactPointerEvent<SVGElement>) {
+    const rect = mapRef.current?.getBoundingClientRect();
+    const rawX = rect ? event.clientX - rect.left + 14 : 16;
+    const rawY = rect ? event.clientY - rect.top + 14 : 16;
+    return {
+      x: Math.max(10, Math.min(rawX, size.width - 290)),
+      y: Math.max(10, Math.min(rawY, size.height - 190))
+    };
+  }
+
+  function featureHandlers(feature: GeoJsonFeature, layer: OpenDataLayerDefinition): FeatureInteractionHandlers {
+    return {
+      onPointerDown: (event) => event.stopPropagation(),
+      onPointerEnter: (event) => showFeatureInfo(feature, layer, event, false),
+      onPointerMove: moveFeatureInfo,
+      onPointerLeave: hideFeatureInfo,
+      onPointerUp: (event) => showFeatureInfo(feature, layer, event, true)
+    };
   }
 
   return (
@@ -254,10 +341,35 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
         <svg className="geojson-overlay" role="presentation" viewBox={`0 0 ${size.width} ${size.height}`}>
           {enabledLayers.map((layer) =>
             (collections[layer.id]?.features ?? []).slice(0, MAX_RENDERED_FEATURES_PER_LAYER).map((feature, index) =>
-              renderFeature(feature, layer, `${layer.id}-${index}`, view, size)
+              renderFeature(feature, layer, `${layer.id}-${index}`, view, size, featureHandlers(feature, layer))
             )
           )}
         </svg>
+
+        {featureInfo ? (
+          <div
+            className={`geo-feature-popover${featureInfo.pinned ? " pinned" : ""}`}
+            style={{ left: featureInfo.x, top: featureInfo.y, "--layer-color": featureInfo.color } as CSSProperties}
+          >
+            <div className="geo-feature-popover-head">
+              <span>{featureInfo.layerLabel}</span>
+              {featureInfo.pinned ? (
+                <button aria-label="情報を閉じる" onClick={() => setFeatureInfo(null)} type="button">
+                  ×
+                </button>
+              ) : null}
+            </div>
+            <strong>{featureInfo.title}</strong>
+            <dl>
+              {featureInfo.rows.map((row) => (
+                <div key={`${row.label}-${row.value}`}>
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
 
         <div className="geo-map-pin-layer">
           {areas.slice(0, 14).map((item) => {
@@ -396,7 +508,8 @@ function renderFeature(
   layer: OpenDataLayerDefinition,
   key: string,
   view: MapView,
-  size: MapSize
+  size: MapSize,
+  handlers: FeatureInteractionHandlers
 ) {
   if (!feature.geometry) return null;
   const commonStyle: CSSProperties = {
@@ -411,7 +524,7 @@ function renderFeature(
     const path = polygonPath(feature.geometry.coordinates, view, size);
     if (!path) return null;
     return (
-      <path className="geojson-feature" d={path} fillRule="evenodd" key={key} style={commonStyle}>
+      <path className="geojson-feature" d={path} fillRule="evenodd" key={key} style={commonStyle} {...handlers}>
         <title>{title}</title>
       </path>
     );
@@ -421,7 +534,7 @@ function renderFeature(
     const path = feature.geometry.coordinates.map((polygon) => polygonPath(polygon, view, size)).filter(Boolean).join(" ");
     if (!path) return null;
     return (
-      <path className="geojson-feature" d={path} fillRule="evenodd" key={key} style={commonStyle}>
+      <path className="geojson-feature" d={path} fillRule="evenodd" key={key} style={commonStyle} {...handlers}>
         <title>{title}</title>
       </path>
     );
@@ -431,7 +544,7 @@ function renderFeature(
     const path = linePath(feature.geometry.coordinates, view, size);
     if (!path) return null;
     return (
-      <path className="geojson-feature-line" d={path} fill="none" key={key} style={commonStyle}>
+      <path className="geojson-feature-line" d={path} fill="none" key={key} style={commonStyle} {...handlers}>
         <title>{title}</title>
       </path>
     );
@@ -441,7 +554,7 @@ function renderFeature(
     const path = feature.geometry.coordinates.map((line) => linePath(line, view, size)).filter(Boolean).join(" ");
     if (!path) return null;
     return (
-      <path className="geojson-feature-line" d={path} fill="none" key={key} style={commonStyle}>
+      <path className="geojson-feature-line" d={path} fill="none" key={key} style={commonStyle} {...handlers}>
         <title>{title}</title>
       </path>
     );
@@ -450,7 +563,7 @@ function renderFeature(
   if (feature.geometry.type === "Point" && isPosition(feature.geometry.coordinates)) {
     const point = projectLatLng({ lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] }, view, size);
     return (
-      <circle className="geojson-feature-point" cx={point.x} cy={point.y} key={key} r={5} style={commonStyle}>
+      <circle className="geojson-feature-point" cx={point.x} cy={point.y} key={key} r={5} style={commonStyle} {...handlers}>
         <title>{title}</title>
       </circle>
     );
@@ -481,9 +594,55 @@ function isPosition(value: unknown): value is Position {
 
 function formatFeatureTitle(feature: GeoJsonFeature, layer: OpenDataLayerDefinition) {
   const properties = feature.properties ?? {};
-  const name = firstString(properties, ["name", "Name", "label", "area_name", "city_name"]) ?? layer.label;
-  const value = firstDisplayValue(properties, ["value", "mean", "data_value", "price", "rate"]);
+  const name = firstString(properties, ["address", "name", "Name", "label", "area_name", "city_name", "characteristics"]) ?? layer.label;
+  const value = layerStatistic(properties, layer);
   return value ? `${name} / ${value}` : name;
+}
+
+function buildFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition) {
+  const properties = feature.properties ?? {};
+  const address = firstString(properties, ["address", "name", "Name", "label", "area_name", "city_name"]);
+  const characteristic = firstString(properties, ["characteristics"]);
+  const description = firstString(properties, ["descriptions", "description"]);
+  const statistic = layerStatistic(properties, layer);
+  const rows: FeatureInfoRow[] = [];
+
+  if (statistic) rows.push({ label: metricLabel(layer), value: statistic });
+  if (characteristic) rows.push({ label: layer.category === "school" ? "学校名" : "区分", value: characteristic });
+  if (description) rows.push({ label: layer.category === "zoning" ? "建ぺい率 / 容積率" : "詳細", value: description });
+  if (address) rows.push({ label: layer.category === "school" ? "所在地" : "エリア", value: address });
+
+  if (rows.length === 0) rows.push({ label: "属性", value: "表示できる属性値がありません" });
+
+  return {
+    layerLabel: layer.label,
+    color: layer.color,
+    title: characteristic ?? address ?? layer.label,
+    rows
+  };
+}
+
+function metricLabel(layer: OpenDataLayerDefinition) {
+  if (layer.id === "land-price") return "地価公示";
+  if (layer.id === "population-density") return "人口密度";
+  if (layer.id === "household-income") return "世帯年収";
+  if (layer.id === "rent-mean") return "賃料平均";
+  if (layer.id === "gross-rate") return "キャップレート";
+  return "統計値";
+}
+
+function layerStatistic(properties: Record<string, unknown>, layer: OpenDataLayerDefinition) {
+  const value = firstDefined(properties, ["statistics", "value", "mean", "data_value", "price", "rate"]);
+  if (typeof value === "number") {
+    if (layer.id === "gross-rate") return value <= 1 ? `${(value * 100).toFixed(2)}%` : `${value.toLocaleString("ja-JP")}%`;
+    if (layer.id === "population-density") return `${Math.round(value).toLocaleString("ja-JP")}人/k㎡`;
+    if (layer.id === "household-income") return `${Math.round(value).toLocaleString("ja-JP")}万円`;
+    if (layer.id === "land-price") return `${Math.round(value).toLocaleString("ja-JP")}円/㎡`;
+    if (layer.id === "rent-mean") return `${Math.round(value).toLocaleString("ja-JP")}円`;
+    return value.toLocaleString("ja-JP");
+  }
+  if (typeof value === "string" && value.trim()) return value;
+  return null;
 }
 
 function firstString(properties: Record<string, unknown>, keys: string[]) {
@@ -494,11 +653,14 @@ function firstString(properties: Record<string, unknown>, keys: string[]) {
   return null;
 }
 
-function firstDisplayValue(properties: Record<string, unknown>, keys: string[]) {
+function firstDefined(properties: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const value = properties[key];
-    if (typeof value === "number") return value.toLocaleString("ja-JP");
-    if (typeof value === "string" && value.trim()) return value;
+    if (value !== null && value !== undefined && value !== "") return value;
   }
   return null;
+}
+
+function getOpenDataLayerLabel(layerId: string) {
+  return OPEN_DATA_LAYERS.find((layer) => layer.id === layerId)?.label ?? layerId;
 }

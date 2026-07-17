@@ -26,7 +26,7 @@ export default function DashboardPage() {
         <KpiCards report={report} />
       </section>
 
-      <section className="page-section dashboard-grid">
+      <section className="page-section">
         <article className="panel">
           <div className="section-heading">
             <TrendingUp size={22} />
@@ -34,6 +34,9 @@ export default function DashboardPage() {
           </div>
           <RankingTable areas={report.rankings.municipalities} compact />
         </article>
+      </section>
+
+      <section className="page-section dashboard-map-section">
         <article className="panel">
           <div className="section-heading">
             <MapPinned size={22} />

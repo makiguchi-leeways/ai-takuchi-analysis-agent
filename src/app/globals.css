@@ -201,6 +201,11 @@ td a {
   padding: 22px 0;
 }
 
+.dashboard-map-section {
+  width: calc(100% - 36px);
+  max-width: none;
+}
+
 .lead {
   max-width: 880px;
   color: var(--muted);
@@ -391,6 +396,11 @@ td a {
 
 .wide-panel {
   grid-column: span 1;
+}
+
+.dashboard-map-section .panel,
+.report-map-section {
+  padding: clamp(14px, 2vw, 22px);
 }
 
 .table-wrap {
@@ -654,6 +664,14 @@ td a {
   user-select: none;
 }
 
+.dashboard-map-section .tile-map {
+  min-height: clamp(560px, calc(100vh - 270px), 860px);
+}
+
+.report-map-section .tile-map {
+  min-height: clamp(520px, 68vh, 780px);
+}
+
 .tile-map.dragging {
   cursor: grabbing;
 }
@@ -687,11 +705,108 @@ td a {
 .geojson-feature-line,
 .geojson-feature-point {
   stroke-width: 1.5px;
+  cursor: pointer;
+  pointer-events: visiblePainted;
+  transition:
+    fill-opacity 0.15s ease,
+    stroke-opacity 0.15s ease,
+    stroke-width 0.15s ease;
   vector-effect: non-scaling-stroke;
 }
 
 .geojson-feature-line {
   stroke-width: 2.2px;
+}
+
+.geojson-feature:hover,
+.geojson-feature-line:hover,
+.geojson-feature-point:hover {
+  fill-opacity: 0.42;
+  stroke-opacity: 1;
+  stroke-width: 3px;
+}
+
+.geo-feature-popover {
+  position: absolute;
+  z-index: 6;
+  width: min(280px, calc(100% - 20px));
+  border: 1px solid color-mix(in srgb, var(--layer-color) 68%, white);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(23, 32, 35, 0.18);
+  padding: 10px 12px;
+  color: var(--ink);
+  pointer-events: auto;
+}
+
+.geo-feature-popover::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: -1px;
+  width: 5px;
+  border-radius: 8px 0 0 8px;
+  background: var(--layer-color);
+}
+
+.geo-feature-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.geo-feature-popover-head button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.geo-feature-popover strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.geo-feature-popover dl {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.geo-feature-popover dl div {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.geo-feature-popover dt,
+.geo-feature-popover dd {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.geo-feature-popover dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.geo-feature-popover dd {
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .geo-map-pin-layer {
@@ -940,6 +1055,15 @@ select {
   .tile-map {
     min-height: 360px;
   }
+
+  .dashboard-map-section .tile-map,
+  .report-map-section .tile-map {
+    min-height: 430px;
+  }
+
+  .geo-feature-popover {
+    width: min(260px, calc(100% - 20px));
+  }
 }
 
 @media print {
@@ -979,6 +1103,11 @@ select {
   .quadrant-shell,
   .map-panel,
   .tile-map {
+    min-height: 280px;
+  }
+
+  .dashboard-map-section .tile-map,
+  .report-map-section .tile-map {
     min-height: 280px;
   }
 }
