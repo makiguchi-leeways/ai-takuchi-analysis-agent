@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         accept: "application/json",
         "x-api-key": apiKey
       },
-      next: { revalidate: 60 * 30 }
+      cache: "no-store"
     });
 
     const body = await response.text();
