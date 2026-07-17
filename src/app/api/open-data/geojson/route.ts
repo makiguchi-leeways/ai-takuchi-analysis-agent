@@ -85,7 +85,9 @@ function buildGateApiUrl(layer: OpenDataLayerDefinition, bounds: Bounds, request
 }
 
 function normalizeGateApiBaseUrl(value: string | undefined) {
-  const raw = (value || DEFAULT_GATE_API_BASE_URL).trim().replace(/^GATE_API_BASE_URL\s*=\s*/, "");
+  let raw = (value || DEFAULT_GATE_API_BASE_URL).trim().replace(/^GATE_API_BASE_URL\s*=\s*/, "");
+  if (/^ttps:\/\//i.test(raw)) raw = `h${raw}`;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) raw = `https://${raw}`;
   const originOnly = raw.replace(/\/ms-map-layer\/.*$/, "");
   return originOnly.endsWith("/") ? originOnly : `${originOnly}/`;
 }
