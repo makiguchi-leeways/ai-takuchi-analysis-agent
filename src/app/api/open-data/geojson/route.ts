@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
   try {
     upstreamUrl = buildGateApiUrl(layer, bounds, searchParams.get("year"));
-    const response = await fetch(upstreamUrl, {
+    const response = await fetch(upstreamUrl.toString(), {
       headers: {
         accept: "application/json",
         "x-api-key": apiKey
