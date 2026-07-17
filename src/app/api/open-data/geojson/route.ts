@@ -26,9 +26,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(buildFallbackGeoJson(layer, bounds, "missing-api-key"));
   }
 
-  const upstreamUrl = buildGateApiUrl(layer, bounds, searchParams.get("year"));
-
   try {
+    const upstreamUrl = buildGateApiUrl(layer, bounds, searchParams.get("year"));
     const response = await fetch(upstreamUrl, {
       headers: {
         accept: "application/json",
@@ -63,13 +62,19 @@ export async function GET(request: NextRequest) {
 }
 
 function buildGateApiUrl(layer: OpenDataLayerDefinition, bounds: Bounds, requestedYear: string | null) {
-  const baseUrl = process.env.GATE_API_BASE_URL ?? DEFAULT_GATE_API_BASE_URL;
-  const endpoint = new URL("/ms-map-layer/v3/map/geojson", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  const baseUrl = normalizeGateApiBaseUrl(process.env.GATE_API_BASE_URL);
+  const endpoint = new URL("/ms-map-layer/v3/map/geojson", baseUrl);
   endpoint.searchParams.set("bounds", bounds.join(","));
   endpoint.searchParams.set("data_name", layer.dataName);
   endpoint.searchParams.set("data_source_year", requestedYear || layer.dataSourceYear);
   if (layer.rateUnitType) endpoint.searchParams.set("rate_unit_type", layer.rateUnitType);
   return endpoint;
+}
+
+function normalizeGateApiBaseUrl(value: string | undefined) {
+  const raw = (value || DEFAULT_GATE_API_BASE_URL).trim().replace(/^GATE_API_BASE_URL\s*=\s*/, "");
+  const originOnly = raw.replace(/\/ms-map-layer\/.*$/, "");
+  return originOnly.endsWith("/") ? originOnly : `${originOnly}/`;
 }
 
 function parseBounds(value: string | null): Bounds | null {
