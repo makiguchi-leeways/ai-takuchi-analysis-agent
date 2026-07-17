@@ -133,6 +133,7 @@ td a {
 .brand,
 .topbar nav,
 .topbar nav a,
+.topbar nav button,
 .action-row,
 .section-heading,
 .section-title-row,
@@ -165,19 +166,29 @@ td a {
   justify-content: flex-end;
 }
 
-.topbar nav a {
+.topbar nav a,
+.topbar nav button {
   gap: 6px;
   min-height: 38px;
+  border: 0;
   padding: 8px 10px;
   border-radius: 8px;
+  background: transparent;
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+  cursor: pointer;
 }
 
-.topbar nav a:hover {
+.topbar nav a:hover,
+.topbar nav button:hover {
   background: var(--surface-soft);
   color: var(--green);
+}
+
+.market-workspace-header {
+  position: relative;
+  min-height: 68px;
 }
 
 .page-hero,
@@ -1672,5 +1683,34 @@ select {
   .dashboard-map-section .tile-map,
   .report-map-section .tile-map {
     min-height: 280px;
+  }
+
+  .map-workspace-shell {
+    display: block;
+    min-height: auto;
+    background: white;
+  }
+
+  .map-workspace-tabs,
+  .map-side-panel,
+  .map-result-toolbar,
+  .map-stage-canvas .map-control-bar,
+  .map-stage-canvas .map-status-row {
+    display: none;
+  }
+
+  .map-search-header {
+    border: 1px solid var(--line);
+    padding: 10px;
+  }
+
+  .map-workspace-body {
+    display: block;
+  }
+
+  .map-stage-canvas .tile-map {
+    height: 72vh;
+    min-height: 520px;
+    border: 1px solid var(--line);
   }
 }

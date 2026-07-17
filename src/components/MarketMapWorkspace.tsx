@@ -8,14 +8,14 @@ import {
   Database,
   FileText,
   Layers,
-  LogOut,
-  Map,
   MapPinned,
   Newspaper,
+  Printer,
   Search,
+  Settings,
   ShieldAlert,
+  Target,
   TrendingUp,
-  User,
   WalletCards
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -113,29 +113,43 @@ export function MarketMapWorkspace({ report }: { report: MarketReport }) {
     setSearchedAt(new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date()));
   }
 
+  function handlePrint() {
+    window.print();
+  }
+
   return (
     <main className="map-workspace-shell">
-      <header className="map-product-header">
-        <div className="map-brand">
-          <span className="map-brand-mark">
-            <Map size={28} />
-          </span>
-          <strong>Gate.</strong>
-          <small>宅地需給分析</small>
-        </div>
-        <div className="map-product-actions">
-          <span className="plan-badge">無制限</span>
-          <span className="user-chip">
-            <User size={18} />
-            巻口 成憲
-          </span>
-          <a href="/reports/sample-aoba-report">レポート</a>
-          <a href="/dashboard">Dashboardへ戻る</a>
-          <button type="button">
-            <LogOut size={18} />
-            ログアウト
+      <header className="topbar market-workspace-header no-print">
+        <a className="brand" href="/">
+          <span className="brand-mark">HM</span>
+          <span>Market Scout</span>
+        </a>
+        <nav>
+          <a href="/analyze">
+            <Target size={17} />
+            分析
+          </a>
+          <a href="/dashboard">
+            <BarChart3 size={17} />
+            ダッシュボード
+          </a>
+          <a href="/reports">
+            <FileText size={17} />
+            レポート
+          </a>
+          <a href="/data-sources">
+            <Database size={17} />
+            データ
+          </a>
+          <button onClick={handlePrint} type="button">
+            <Printer size={17} />
+            出力
           </button>
-        </div>
+          <a href="/settings">
+            <Settings size={17} />
+            設定
+          </a>
+        </nav>
       </header>
 
       <section className="map-search-header">

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Gate 宅地需給分析",
+  title: "Market Scout 宅地需給分析",
   description: "地図ベースの宅地需給分析ワークスペース"
 };
 
