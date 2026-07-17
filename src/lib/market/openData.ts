@@ -1,4 +1,4 @@
-export type OpenDataLayerCategory = "population" | "household" | "income" | "rent" | "land" | "school" | "zoning";
+export type OpenDataLayerCategory = "population" | "household" | "income" | "rent" | "investment" | "land" | "school" | "zoning";
 
 export interface OpenDataLayerDefinition {
   id: string;
@@ -48,16 +48,26 @@ export const OPEN_DATA_LAYERS: OpenDataLayerDefinition[] = [
     label: "地価公示",
     category: "land",
     dataName: "land_price",
-    dataSourceYear: "2024",
+    dataSourceYear: "2021",
     color: "#a86b15",
     fillOpacity: 0.2,
     strokeOpacity: 0.75
   },
   {
+    id: "gross-rate",
+    label: "キャップレート",
+    category: "investment",
+    dataName: "total_gross_rate_mean",
+    dataSourceYear: "2020",
+    color: "#5b6c2f",
+    fillOpacity: 0.18,
+    strokeOpacity: 0.72
+  },
+  {
     id: "elementary-school",
     label: "小学校区",
     category: "school",
-    dataName: "elementary_school",
+    dataName: "elementary_school_boundaries",
     dataSourceYear: "2021",
     color: "#2f7f9f",
     fillOpacity: 0.1,

@@ -91,7 +91,8 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
   const tiles = useMemo(() => getVisibleTiles(view, size), [view, size]);
   const boundsParam = useMemo(() => formatBounds(getViewportBounds(view, size)), [view, size]);
   const enabledLayers = OPEN_DATA_LAYERS.filter((layer) => enabledLayerIds.includes(layer.id));
-  const sampleLayerActive = enabledLayerIds.some((id) => collections[id]?.metadata?.source === "sample");
+  const fallbackLayers = enabledLayers.filter((layer) => collections[layer.id]?.metadata?.source === "sample");
+  const missingApiKeyActive = fallbackLayers.some((layer) => collections[layer.id]?.metadata?.reason === "missing-api-key");
 
   useEffect(() => {
     const element = mapRef.current;
@@ -285,7 +286,13 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
 
       <div className="map-status-row">
         <span>{loading ? "レイヤー読込中" : `${enabledLayerIds.length}件のレイヤーを表示`}</span>
-        {sampleLayerActive ? <span>取得できないレイヤーはプレビューGeoJSONを表示</span> : null}
+        {fallbackLayers.length > 0 ? (
+          <span className="map-warning">
+            {missingApiKeyActive
+              ? "Gate APIキー未設定のためプレビューGeoJSONを表示"
+              : `Gate API未取得: ${fallbackLayers.map((layer) => layer.label).join("、")}（プレビュー表示）`}
+          </span>
+        ) : null}
         {errorMessage ? <span className="map-error">{errorMessage}</span> : null}
       </div>
     </div>

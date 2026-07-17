@@ -3,7 +3,7 @@ import { getOpenDataLayer, type OpenDataLayerDefinition } from "@/lib/market/ope
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_GATE_API_BASE_URL = "https://enterprise-staging-api.gate.estate";
+const DEFAULT_GATE_API_BASE_URL = "https://staging-api.gate.estate";
 
 type Bounds = [number, number, number, number];
 

@@ -745,6 +745,10 @@ td a {
   color: var(--red);
 }
 
+.map-warning {
+  color: var(--amber);
+}
+
 .map-road {
   position: absolute;
   height: 9px;
