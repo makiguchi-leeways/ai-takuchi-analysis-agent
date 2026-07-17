@@ -6,6 +6,17 @@ export const dynamic = "force-dynamic";
 const DEFAULT_GATE_API_BASE_URL = "https://staging-api.gate.estate";
 
 type Bounds = [number, number, number, number];
+type UpstreamDiagnostics = {
+  status?: number;
+  detail?: string;
+  cause?: string;
+  causeCode?: string;
+  causeHostname?: string;
+  host?: string;
+  path?: string;
+  dataName?: string;
+  dataSourceYear?: string;
+};
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -26,8 +37,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(buildFallbackGeoJson(layer, bounds, "missing-api-key"));
   }
 
+  let upstreamUrl: URL | null = null;
+
   try {
-    const upstreamUrl = buildGateApiUrl(layer, bounds, searchParams.get("year"));
+    upstreamUrl = buildGateApiUrl(layer, bounds, searchParams.get("year"));
     const response = await fetch(upstreamUrl, {
       headers: {
         accept: "application/json",
@@ -41,7 +54,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         buildFallbackGeoJson(layer, bounds, "gate-api-error", {
           status: response.status,
-          detail: body.slice(0, 240)
+          detail: body.slice(0, 240),
+          ...describeGateRequest(upstreamUrl, layer)
         })
       );
     }
@@ -50,13 +64,13 @@ export async function GET(request: NextRequest) {
       const geoJson = JSON.parse(body);
       return NextResponse.json(withMetadata(geoJson, layer, "gate-api"));
     } catch {
-      return NextResponse.json(buildFallbackGeoJson(layer, bounds, "invalid-gate-api-json"));
+      return NextResponse.json(
+        buildFallbackGeoJson(layer, bounds, "invalid-gate-api-json", describeGateRequest(upstreamUrl, layer))
+      );
     }
   } catch (error) {
     return NextResponse.json(
-      buildFallbackGeoJson(layer, bounds, "gate-api-request-failed", {
-        detail: error instanceof Error ? error.message : "unknown error"
-      })
+      buildFallbackGeoJson(layer, bounds, "gate-api-request-failed", describeGateError(error, upstreamUrl, layer))
     );
   }
 }
@@ -75,6 +89,31 @@ function normalizeGateApiBaseUrl(value: string | undefined) {
   const raw = (value || DEFAULT_GATE_API_BASE_URL).trim().replace(/^GATE_API_BASE_URL\s*=\s*/, "");
   const originOnly = raw.replace(/\/ms-map-layer\/.*$/, "");
   return originOnly.endsWith("/") ? originOnly : `${originOnly}/`;
+}
+
+function describeGateRequest(upstreamUrl: URL | null, layer: OpenDataLayerDefinition): UpstreamDiagnostics {
+  return {
+    host: upstreamUrl?.host,
+    path: upstreamUrl?.pathname,
+    dataName: layer.dataName,
+    dataSourceYear: upstreamUrl?.searchParams.get("data_source_year") ?? layer.dataSourceYear
+  };
+}
+
+function describeGateError(error: unknown, upstreamUrl: URL | null, layer: OpenDataLayerDefinition): UpstreamDiagnostics {
+  const diagnostics: UpstreamDiagnostics = {
+    detail: error instanceof Error ? error.message : "unknown error",
+    ...describeGateRequest(upstreamUrl, layer)
+  };
+
+  if (error instanceof Error && error.cause && typeof error.cause === "object") {
+    const cause = error.cause as Record<string, unknown>;
+    if (typeof cause.message === "string") diagnostics.cause = cause.message;
+    if (typeof cause.code === "string") diagnostics.causeCode = cause.code;
+    if (typeof cause.hostname === "string") diagnostics.causeHostname = cause.hostname;
+  }
+
+  return diagnostics;
 }
 
 function parseBounds(value: string | null): Bounds | null {
@@ -104,7 +143,7 @@ function buildFallbackGeoJson(
   layer: OpenDataLayerDefinition,
   bounds: Bounds,
   reason: string,
-  upstream?: { status?: number; detail?: string }
+  upstream?: UpstreamDiagnostics
 ) {
   const [south, west, north, east] = bounds;
   const latStep = (north - south) / 2;
