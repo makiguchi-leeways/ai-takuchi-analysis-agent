@@ -81,21 +81,22 @@ type FeatureInfoRow = {
 };
 
 type FeatureInfoState = {
-  layerLabel: string;
-  color: string;
-  title: string;
-  rows: FeatureInfoRow[];
+  entries: MapFeatureSelectionItem[];
   x: number;
   y: number;
   pinned: boolean;
 };
 
-export interface MapFeatureSelection {
+export interface MapFeatureSelectionItem {
   layer: OpenDataLayerDefinition;
   title: string;
   rows: FeatureInfoRow[];
   properties: Record<string, unknown>;
   source: "gate-api" | "sample" | "preview" | "real-estate-library" | "openstreetmap" | "unknown";
+}
+
+export interface MapFeatureSelection extends MapFeatureSelectionItem {
+  features: MapFeatureSelectionItem[];
 }
 
 interface OpenDataMarketMapProps {
@@ -306,30 +307,25 @@ export function OpenDataMarketMap({
 
   function showFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition, event: ReactPointerEvent<SVGElement>, pinned: boolean) {
     event.stopPropagation();
+    const entries = collectFeatureInfo(feature, layer, event);
     const point = tooltipPosition(event);
-    const info = buildFeatureInfo(feature, layer);
     if (pinned) {
-      onFeatureSelect?.({
-        layer,
-        title: info.title,
-        rows: info.rows,
-        properties: feature.properties ?? {},
-        source: collections[layer.id]?.metadata?.source ?? "unknown"
-      });
+      onFeatureSelect?.(toFeatureSelection(entries));
     }
     setFeatureInfo({
-      ...info,
+      entries,
       ...point,
       pinned
     });
   }
 
-  function moveFeatureInfo(event: ReactPointerEvent<SVGElement>) {
+  function moveFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition, event: ReactPointerEvent<SVGElement>) {
     event.stopPropagation();
     setFeatureInfo((current) => {
       if (!current || current.pinned) return current;
       return {
         ...current,
+        entries: collectFeatureInfo(feature, layer, event),
         ...tooltipPosition(event)
       };
     });
@@ -340,12 +336,10 @@ export function OpenDataMarketMap({
   }
 
   function tooltipPosition(event: ReactPointerEvent<SVGElement>) {
-    const rect = mapRef.current?.getBoundingClientRect();
-    const rawX = rect ? event.clientX - rect.left + 14 : 16;
-    const rawY = rect ? event.clientY - rect.top + 14 : 16;
+    const pointer = pointerPosition(event);
     return {
-      x: Math.max(10, Math.min(rawX, size.width - 290)),
-      y: Math.max(10, Math.min(rawY, size.height - 190))
+      x: Math.max(10, Math.min(pointer.x + 14, size.width - 290)),
+      y: Math.max(10, Math.min(pointer.y + 14, size.height - 190))
     };
   }
 
@@ -353,10 +347,42 @@ export function OpenDataMarketMap({
     return {
       onPointerDown: (event) => event.stopPropagation(),
       onPointerEnter: (event) => showFeatureInfo(feature, layer, event, false),
-      onPointerMove: moveFeatureInfo,
+      onPointerMove: (event) => moveFeatureInfo(feature, layer, event),
       onPointerLeave: hideFeatureInfo,
       onPointerUp: (event) => showFeatureInfo(feature, layer, event, true)
     };
+  }
+
+  function pointerPosition(event: ReactPointerEvent<SVGElement>) {
+    const rect = mapRef.current?.getBoundingClientRect();
+    return {
+      x: rect ? event.clientX - rect.left : 0,
+      y: rect ? event.clientY - rect.top : 0
+    };
+  }
+
+  function collectFeatureInfo(
+    activeFeature: GeoJsonFeature,
+    activeLayer: OpenDataLayerDefinition,
+    event: ReactPointerEvent<SVGElement>
+  ): MapFeatureSelectionItem[] {
+    const pointer = pointerPosition(event);
+    const entries = new Map<string, MapFeatureSelectionItem>();
+
+    for (const layer of enabledLayers) {
+      const features = (collections[layer.id]?.features ?? []).slice(0, MAX_RENDERED_FEATURES_PER_LAYER);
+      const matchedFeature = layer.id === activeLayer.id
+        ? activeFeature
+        : features.find((candidate) => featureContainsPoint(candidate, pointer, view, size));
+      if (!matchedFeature) continue;
+      entries.set(layer.id, createFeatureInfoEntry(matchedFeature, layer, collections[layer.id]?.metadata?.source ?? "unknown"));
+    }
+
+    if (!entries.has(activeLayer.id)) {
+      entries.set(activeLayer.id, createFeatureInfoEntry(activeFeature, activeLayer, collections[activeLayer.id]?.metadata?.source ?? "unknown"));
+    }
+
+    return [...entries.values()];
   }
 
   return (
@@ -436,25 +462,30 @@ export function OpenDataMarketMap({
         {featureInfo ? (
           <div
             className={`geo-feature-popover${featureInfo.pinned ? " pinned" : ""}`}
-            style={{ left: featureInfo.x, top: featureInfo.y, "--layer-color": featureInfo.color } as CSSProperties}
+            style={{ left: featureInfo.x, top: featureInfo.y, "--layer-color": featureInfo.entries[0]?.layer.color ?? "#12665d" } as CSSProperties}
           >
             <div className="geo-feature-popover-head">
-              <span>{featureInfo.layerLabel}</span>
+              <span>{featureInfo.entries.length > 1 ? `${featureInfo.entries.length}レイヤーの情報` : featureInfo.entries[0]?.layer.label}</span>
               {featureInfo.pinned ? (
                 <button aria-label="情報を閉じる" onClick={() => setFeatureInfo(null)} type="button">
                   ×
                 </button>
               ) : null}
             </div>
-            <strong>{featureInfo.title}</strong>
-            <dl>
-              {featureInfo.rows.map((row) => (
-                <div key={`${row.label}-${row.value}`}>
-                  <dt>{row.label}</dt>
-                  <dd>{row.value}</dd>
-                </div>
-              ))}
-            </dl>
+            {featureInfo.entries.map((entry) => (
+              <section className="geo-feature-popover-entry" key={entry.layer.id}>
+                <div className="geo-feature-popover-layer"><span style={{ backgroundColor: entry.layer.color }} />{entry.layer.label}</div>
+                <strong>{entry.title}</strong>
+                <dl>
+                  {entry.rows.map((row) => (
+                    <div key={`${entry.layer.id}-${row.label}-${row.value}`}>
+                      <dt>{row.label}</dt>
+                      <dd>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ))}
           </div>
         ) : null}
 
@@ -608,6 +639,91 @@ function screenToLatLng(point: { x: number; y: number }, view: MapView, size: Ma
     centerWorld.y + point.y - size.height / 2,
     view.zoom
   );
+}
+
+function createFeatureInfoEntry(
+  feature: GeoJsonFeature,
+  layer: OpenDataLayerDefinition,
+  source: MapFeatureSelectionItem["source"]
+): MapFeatureSelectionItem {
+  const info = buildFeatureInfo(feature, layer);
+  return {
+    layer,
+    title: info.title,
+    rows: info.rows,
+    properties: feature.properties ?? {},
+    source
+  };
+}
+
+function toFeatureSelection(entries: MapFeatureSelectionItem[]): MapFeatureSelection {
+  const primary = entries[0];
+  return {
+    ...primary,
+    features: entries
+  };
+}
+
+function featureContainsPoint(feature: GeoJsonFeature, pointer: { x: number; y: number }, view: MapView, size: MapSize) {
+  const geometry = feature.geometry;
+  if (!geometry) return false;
+
+  if (geometry.type === "Point" && isPosition(geometry.coordinates)) {
+    const point = projectLatLng({ lat: geometry.coordinates[1], lng: geometry.coordinates[0] }, view, size);
+    return distanceBetween(pointer, point) <= 12;
+  }
+
+  if (geometry.type === "LineString") return lineContainsPoint(geometry.coordinates, pointer, view, size, 10);
+  if (geometry.type === "MultiLineString" && Array.isArray(geometry.coordinates)) {
+    return geometry.coordinates.some((line) => lineContainsPoint(line, pointer, view, size, 10));
+  }
+
+  if (geometry.type === "Polygon") return polygonContainsPoint(geometry.coordinates, pointer, view, size);
+  if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
+    return geometry.coordinates.some((polygon) => polygonContainsPoint(polygon, pointer, view, size));
+  }
+
+  return false;
+}
+
+function polygonContainsPoint(coordinates: unknown, pointer: { x: number; y: number }, view: MapView, size: MapSize) {
+  if (!Array.isArray(coordinates) || !Array.isArray(coordinates[0])) return false;
+  const outerRing = coordinates[0];
+  const points = outerRing.filter(isPosition).map((position) => projectLatLng({ lat: position[1], lng: position[0] }, view, size));
+  if (points.length < 3) return false;
+  if (pointInRing(pointer, points)) return true;
+  return points.some((point, index) => distanceToSegment(pointer, point, points[(index + 1) % points.length]) <= 5);
+}
+
+function lineContainsPoint(coordinates: unknown, pointer: { x: number; y: number }, view: MapView, size: MapSize, threshold: number) {
+  if (!Array.isArray(coordinates)) return false;
+  const points = coordinates.filter(isPosition).map((position) => projectLatLng({ lat: position[1], lng: position[0] }, view, size));
+  return points.slice(1).some((point, index) => distanceToSegment(pointer, points[index], point) <= threshold);
+}
+
+function pointInRing(point: { x: number; y: number }, ring: Array<{ x: number; y: number }>) {
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const currentPoint = ring[index];
+    const previousPoint = ring[previous];
+    const crosses = currentPoint.y > point.y !== previousPoint.y > point.y;
+    if (crosses && point.x < ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)) / (previousPoint.y - currentPoint.y) + currentPoint.x) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function distanceBetween(first: { x: number; y: number }, second: { x: number; y: number }) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function distanceToSegment(point: { x: number; y: number }, start: { x: number; y: number }, end: { x: number; y: number }) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return distanceBetween(point, start);
+  const projection = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+  return distanceBetween(point, { x: start.x + projection * dx, y: start.y + projection * dy });
 }
 
 function renderFeature(

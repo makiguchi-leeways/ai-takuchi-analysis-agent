@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyQuadrant, normalizeScore, rankAreas, scoreArea } from "./scoring";
+import { calculateLayerAdjustedOpportunityScore, classifyQuadrant, normalizeScore, rankAreas, scoreArea } from "./scoring";
 import { scoreWeights } from "./weights";
 import type { AreaMetric } from "./types";
 
@@ -72,5 +72,22 @@ describe("market scoring", () => {
     expect(ranked[0].area.id).toBe("low");
     expect(ranked[0].rank).toBe(1);
     expect(ranked[1].quadrant).toBe("competitive");
+  });
+
+  it("recalculates the procurement score from multiple visible layers", () => {
+    const ranked = rankAreas([sampleArea], scoreWeights)[0];
+    const adjusted = calculateLayerAdjustedOpportunityScore(ranked, ["demand-score", "land-price"]);
+
+    expect(adjusted.recalculated).toBe(true);
+    expect(adjusted.activeLabels).toEqual(["需要スコア", "地価公示"]);
+    expect(adjusted.score).not.toBe(ranked.opportunityScore);
+  });
+
+  it("keeps the base procurement score when fewer than two score layers are active", () => {
+    const ranked = rankAreas([sampleArea], scoreWeights)[0];
+    const adjusted = calculateLayerAdjustedOpportunityScore(ranked, ["demand-score"]);
+
+    expect(adjusted.recalculated).toBe(false);
+    expect(adjusted.score).toBe(ranked.opportunityScore);
   });
 });

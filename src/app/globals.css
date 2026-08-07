@@ -787,6 +787,8 @@ td a {
   position: absolute;
   z-index: 6;
   width: min(280px, calc(100% - 20px));
+  max-height: min(58vh, 460px);
+  overflow: auto;
   border: 1px solid color-mix(in srgb, var(--layer-color) 68%, white);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
@@ -827,6 +829,27 @@ td a {
   background: var(--surface);
   color: var(--muted);
   cursor: pointer;
+}
+
+.geo-feature-popover-entry + .geo-feature-popover-entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.geo-feature-popover-layer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.geo-feature-popover-layer span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
 .geo-feature-popover strong {
@@ -2255,6 +2278,7 @@ select {
 .breakdown-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 42px; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
 .breakdown-row span, .breakdown-row small { display: block; }.breakdown-row span { font-size: 11px; font-weight: 800; }.breakdown-row small { margin-top: 2px; font-size: 9px; }.breakdown-row b { color: var(--green); font-size: 12px; text-align: right; }.breakdown-row i { grid-column: 1 / -1; display: block; height: 4px; border-radius: 4px; background: var(--green); opacity: .65; }
 .feature-source-badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid; border-radius: 999px; padding: 5px 8px; color: var(--ink); }.feature-source-badge span { width: 8px; height: 8px; border-radius: 50%; }
+.feature-detail-groups { display: grid; gap: 11px; }.feature-detail-group + .feature-detail-group { padding-top: 10px; border-top: 1px solid var(--line); }.feature-detail-group > strong { display: block; margin-bottom: 5px; font-size: 11px; }
 .simulator-section { background: #f8fbfa; }.simulator-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.number-field { gap: 4px; color: var(--muted); font-size: 10px; }.number-field input { min-height: 34px; padding: 6px 8px; font-size: 12px; font-weight: 800; }.ceiling-result { margin: 12px 0 9px; padding: 11px; border: 1px solid #b7d8ce; border-radius: 6px; background: #edf8f4; }.ceiling-result span, .ceiling-result small { display: block; color: var(--muted); font-size: 10px; font-weight: 800; }.ceiling-result strong { display: block; margin: 4px 0; color: var(--green); font-size: 24px; }.sensitivity-table { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #fff; }.sensitivity-table > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 9px; border-bottom: 1px solid var(--line); font-size: 10px; }.sensitivity-table > div:last-child { border-bottom: 0; }.sensitivity-head { background: #f4f7f6; color: var(--muted); font-weight: 800; }.sensitivity-table b { color: var(--ink); }.source-section p { margin: 0 0 4px; font-size: 11px; font-weight: 900; }.source-section small { font-size: 10px; }
 
 .business-screen { min-height: 100vh; background: var(--bg); }.business-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; width: min(1280px, calc(100% - 40px)); margin: 0 auto; padding: 32px 0 20px; }.business-page-heading h1 { margin: 5px 0 7px; font-size: 28px; }.business-page-heading p { margin: 0; color: var(--muted); font-size: 13px; }.data-mode-badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; background: white; padding: 7px 10px; }.business-content { display: grid; gap: 16px; width: min(1280px, calc(100% - 40px)); margin: 0 auto; padding-bottom: 40px; }.business-toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }.business-toolbar label { width: min(360px, 100%); }.business-toolbar input { min-height: 38px; }.business-panel { border: 1px solid var(--line); border-radius: 7px; background: #fff; padding: 16px; }.business-two-column { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }.panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }.panel-heading h2 { margin: 0; font-size: 15px; }.competition-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.comparison-card { border: 1px solid var(--line); border-radius: 7px; background: #fff; padding: 14px; }.comparison-values { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 8px 0; }.comparison-values strong { font-size: 25px; }.comparison-values small { font-size: 10px; }.benchmark-bars { display: grid; gap: 4px; }.benchmark-bars i { display: block; height: 7px; border-radius: 999px; background: #cdd8d5; }.benchmark-bars i:first-child { background: var(--amber); }.benchmark-bars i.win { background: var(--green); }.comparison-card em { display: block; margin-top: 8px; color: var(--muted); font-size: 10px; font-style: normal; font-weight: 800; }.own-kpi-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.muted-note { color: var(--muted); font-size: 11px; line-height: 1.6; }.competitor-list { display: grid; gap: 5px; }.competitor-list button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 8px; border: 1px solid transparent; border-radius: 5px; background: #f8fbfa; text-align: left; cursor: pointer; }.competitor-list button.selected, .competitor-list button:hover { border-color: var(--green); }.competitor-list strong, .competitor-list small { display: block; }.competitor-list strong { font-size: 11px; }.competitor-list small, .competitor-list b { font-size: 10px; }.selected-company-detail { display: grid; gap: 3px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }.selected-company-detail strong { font-size: 12px; }.selected-company-detail span, .selected-company-detail small { color: var(--muted); font-size: 10px; }.selected-company-detail b { font-size: 15px; }.news-list { display: grid; gap: 0; }.news-list article { display: grid; grid-template-columns: 92px 75px minmax(0, 1fr); align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }.news-list time, .news-list small { color: var(--muted); font-size: 10px; }.news-list strong { display: block; font-size: 12px; }.news-category { width: fit-content; border-radius: 999px; background: var(--blue-soft); color: var(--blue); padding: 4px 7px; font-size: 10px; font-weight: 800; }

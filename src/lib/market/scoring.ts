@@ -203,6 +203,77 @@ export function rankAreas(areas: AreaMetric[], weights: ScoreWeights): RankedAre
     .map((item, index) => ({ ...item, rank: index + 1 }));
 }
 
+export interface LayerAdjustedOpportunityScore {
+  score: number;
+  baseScore: number;
+  recalculated: boolean;
+  activeLabels: string[];
+}
+
+type LayerScoreSignal = {
+  label: string;
+  value: number;
+  weight: number;
+};
+
+export function calculateLayerAdjustedOpportunityScore(
+  area: RankedArea,
+  enabledLayerIds: string[]
+): LayerAdjustedOpportunityScore {
+  const signals = layerScoreSignals(area);
+  const selectedSignals = enabledLayerIds
+    .map((layerId) => signals[layerId])
+    .filter((signal): signal is LayerScoreSignal => signal !== undefined);
+  const activeLabels = selectedSignals.map((signal) => signal.label);
+
+  if (selectedSignals.length < 2) {
+    return {
+      score: area.opportunityScore,
+      baseScore: area.opportunityScore,
+      recalculated: false,
+      activeLabels
+    };
+  }
+
+  const totalWeight = selectedSignals.reduce((sum, signal) => sum + signal.weight, 0);
+  const combinedScore = selectedSignals.reduce((sum, signal) => sum + signal.value * signal.weight, 0) / totalWeight;
+
+  return {
+    score: round(clamp(combinedScore)),
+    baseScore: area.opportunityScore,
+    recalculated: true,
+    activeLabels
+  };
+}
+
+function layerScoreSignals(area: RankedArea): Record<string, LayerScoreSignal> {
+  const landPriceRiskScore = normalizeScore(area.area.averageLandPriceManYenPerTsubo, 80, 180);
+  const gapScore = clamp(50 + area.demandSupplyGap / 2);
+  const demographicScore = area.scoreBreakdown.find((item) => item.key === "demographic")?.value ?? area.demandScore;
+
+  return {
+    "demand-score": { label: "需要スコア", value: area.demandScore, weight: 1.2 },
+    "supply-score": { label: "供給スコア", value: area.supplyShortageScore, weight: 1.1 },
+    "supply-demand-gap": { label: "需給ギャップ", value: gapScore, weight: 1.2 },
+    "procurement-opportunity": { label: "仕入機会スコア", value: area.opportunityScore, weight: 1.4 },
+    "candidate-top10": { label: "仕入候補ランキング", value: area.overallScore, weight: 0.8 },
+    "population-density": { label: "人口・人口増減", value: area.liquidityScore, weight: 0.8 },
+    "household-income": { label: "世帯年収", value: area.purchasingPowerScore, weight: 0.9 },
+    "household-change": { label: "世帯増減・年齢構成", value: demographicScore, weight: 0.9 },
+    "future-population": { label: "子育て世代・将来人口", value: area.demandScore, weight: 0.9 },
+    "rent-mean": { label: "賃料平均", value: area.purchasingPowerScore, weight: 0.7 },
+    "land-price": { label: "地価公示", value: 100 - landPriceRiskScore, weight: 0.8 },
+    "gross-rate": { label: "キャップレート", value: area.purchasingPowerScore, weight: 0.7 },
+    "transaction-price": { label: "不動産取引価格", value: area.liquidityScore, weight: 0.8 },
+    "past-transactions": { label: "過去取引・売出土地", value: area.liquidityScore, weight: 0.8 },
+    transport: { label: "鉄道路線・駅", value: area.liquidityScore, weight: 0.5 },
+    "elementary-school": { label: "小学校区", value: area.demandScore, weight: 0.5 },
+    "use-district": { label: "用途地域", value: area.purchasingPowerScore, weight: 0.4 },
+    "building-regulation": { label: "建蔽率・容積率", value: area.purchasingPowerScore, weight: 0.4 },
+    development: { label: "建築確認・開発情報", value: area.liquidityScore, weight: 0.4 }
+  };
+}
+
 function buildReasons(
   area: AreaMetric,
   scores: Pick<ScoreResult, "liquidityScore" | "demandScore" | "supplyShortageScore" | "purchasingPowerScore" | "quadrant">

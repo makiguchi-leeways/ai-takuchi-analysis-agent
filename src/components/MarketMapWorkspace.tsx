@@ -26,6 +26,7 @@ import { OpenDataMarketMap, type MapFeatureSelection } from "@/components/OpenDa
 import { calculateProcurementCeiling } from "@/lib/market/finance";
 import { manYen, opportunityLabel, opportunityTone, percent, score } from "@/lib/market/format";
 import { OPEN_DATA_LAYERS } from "@/lib/market/openData";
+import { calculateLayerAdjustedOpportunityScore } from "@/lib/market/scoring";
 import type {
   AnalysisUnit,
   MarketReport,
@@ -192,6 +193,10 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   const mapAreas = useMemo(() => resolveAreas(report.rankings.neighborhoods, query), [query, report]);
   const primaryArea = selectedArea ?? mapAreas[0] ?? report.rankings.neighborhoods[0];
   const topTen = mapAreas.slice(0, 10);
+  const adjustedOpportunity = useMemo(
+    () => calculateLayerAdjustedOpportunityScore(primaryArea, enabledLayerIds),
+    [enabledLayerIds, primaryArea]
+  );
   const openDataLayerIds = useMemo(
     () => enabledLayerIds.filter((id) => !ANALYSIS_LAYER_IDS.has(id)).filter((id) => OPEN_DATA_LAYERS.some((layer) => layer.id === id)),
     [enabledLayerIds]
@@ -355,7 +360,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
         {drawerOpen ? (
           <aside className="procurement-drawer" aria-label="選択エリア詳細">
             <div className="drawer-header"><div><span>{selectedFeature ? "地図データ詳細" : "仕入れ候補・仕入れ分析"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div><button aria-label="詳細を閉じる" onClick={() => setDrawerOpen(false)} type="button"><X size={18} /></button></div>
-            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={topTen} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} /></>}
+            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={topTen} enabledLayerIds={enabledLayerIds} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} adjustedOpportunity={adjustedOpportunity} /></>}
             <section className="drawer-section simulator-section">
               <div className="drawer-section-heading"><Calculator size={16} /><h3>仕入シミュレーション</h3></div>
               <div className="simulator-grid">
@@ -375,10 +380,10 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   );
 }
 
-function AreaDetail({ area, report }: { area: RankedArea; report: MarketReport }) {
+function AreaDetail({ area, report, adjustedOpportunity }: { area: RankedArea; report: MarketReport; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore> }) {
   const breakdown = area.scoreBreakdown.filter((item) => item.value !== null);
   return <div className="drawer-content">
-    <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(area.opportunityScore)}>{opportunityLabel(area.opportunityScore)}</span><strong>{score(area.opportunityScore)}</strong></div><p>{area.reasons[3] ?? area.reasons[0]}</p></section>
+    <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</span><strong>{score(adjustedOpportunity.score)}</strong></div><p>{adjustedOpportunity.recalculated ? "選択中の複数レイヤーを反映して仕入れ評点を再計算しています。" : area.reasons[3] ?? area.reasons[0]}</p>{adjustedOpportunity.recalculated ? <small className="drawer-note">反映：{adjustedOpportunity.activeLabels.join("・")}（基準評点 {score(adjustedOpportunity.baseScore)}）</small> : null}</section>
     <Accordion title="総合評価・スコア内訳" icon={<TrendingUp size={16} />} open><div className="breakdown-list">{breakdown.map((item) => <div className="breakdown-row" key={item.key}><span>{item.label}<small>{item.source}</small></span><b>{item.value === null ? "データなし" : score(item.value)}</b><i style={{ width: `${Math.max(5, Math.min(100, item.value ?? 0))}%` }} /></div>)}</div></Accordion>
     <Accordion title="需給" icon={<BarChart3 size={16} />} open><MetricList items={[["需要スコア", score(area.demandScore)], ["供給スコア", score(area.supplyScore)], ["需給ギャップ", `${area.demandSupplyGap > 0 ? "+" : ""}${score(area.demandSupplyGap)}`], ["流動性", score(area.liquidityScore)]]} /></Accordion>
     <Accordion title="相場・人口" icon={<MapPinned size={16} />}><MetricList items={[["人口", `${area.area.population.toLocaleString("ja-JP")}人`], ["世帯数", `${area.area.households.toLocaleString("ja-JP")}世帯`], ["人口5年増減", percent(area.area.populationGrowthRate)], ["平均世帯年収", manYen(area.area.averageIncomeManYen)], ["土地平均", `${manYen(area.area.averageLandPriceManYenPerTsubo)}/坪`], ["取引件数", `${area.area.transactionCount}件`]]} /></Accordion>
@@ -387,11 +392,11 @@ function AreaDetail({ area, report }: { area: RankedArea; report: MarketReport }
   </div>;
 }
 
-function CandidateOverview({ areas, selectedArea, onAreaSelect }: { areas: RankedArea[]; selectedArea: RankedArea; onAreaSelect: (area: RankedArea) => void }) {
+function CandidateOverview({ areas, enabledLayerIds, selectedArea, onAreaSelect }: { areas: RankedArea[]; enabledLayerIds: string[]; selectedArea: RankedArea; onAreaSelect: (area: RankedArea) => void }) {
   return <section className="drawer-section candidate-overview">
     <div className="drawer-section-heading"><Target size={16} /><h3>仕入れ候補</h3><small>TOP10 / 地図上の候補</small></div>
     <div className="drawer-candidate-list">
-      {areas.map((item, index) => <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{index + 1}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(item.opportunityScore)}>{score(item.opportunityScore)}</b></button>)}
+      {areas.map((item, index) => { const adjusted = calculateLayerAdjustedOpportunityScore(item, enabledLayerIds); return <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{index + 1}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(adjusted.score)}>{score(adjusted.score)}</b></button>; })}
     </div>
   </section>;
 }
@@ -406,7 +411,8 @@ function FeatureDetail({ feature }: { feature: MapFeatureSelection }) {
         : feature.source === "openstreetmap"
           ? "OpenStreetMap / Overpass"
           : "未特定";
-  return <div className="drawer-content"><section className="drawer-section rating-section"><div className="feature-source-badge" style={{ borderColor: feature.layer.color }}><span style={{ background: feature.layer.color }} />{feature.layer.label}</div><p>地図上で選択したFeatureの実データを表示しています。</p></section><Accordion title="Feature属性" icon={<Database size={16} />} open><MetricList items={feature.rows.map((row) => [row.label, row.value])} /></Accordion><Accordion title="取得情報" icon={<CircleHelp size={16} />} open><MetricList items={[["データソース", sourceLabel], ["レイヤーID", feature.layer.id], ["基準年", feature.layer.dataSourceYear], ["地域単位", "API Feature"]]} /></Accordion></div>;
+  const features = feature.features.length > 0 ? feature.features : [feature];
+  return <div className="drawer-content"><section className="drawer-section rating-section"><div className="feature-source-badge" style={{ borderColor: feature.layer.color }}><span style={{ background: feature.layer.color }} />{features.length > 1 ? `${features.length}レイヤーを選択中` : feature.layer.label}</div><p>地図上で選択した地点に重なる全レイヤーの実データを表示しています。</p></section><Accordion title="Feature属性" icon={<Database size={16} />} open><div className="feature-detail-groups">{features.map((item) => <section className="feature-detail-group" key={item.layer.id}><strong>{item.layer.label}</strong><MetricList items={item.rows.map((row) => [row.label, row.value])} /></section>)}</div></Accordion><Accordion title="取得情報" icon={<CircleHelp size={16} />} open><div className="feature-detail-groups">{features.map((item) => <section className="feature-detail-group" key={item.layer.id}><strong>{item.layer.label}</strong><MetricList items={[["データソース", item.source === "gate-api" ? "Gate API" : item.source === "real-estate-library" ? "国土交通省 不動産情報ライブラリAPI" : item.source === "sample" || item.source === "preview" ? "接続前プレビュー" : item.source === "openstreetmap" ? "OpenStreetMap / Overpass" : sourceLabel], ["レイヤーID", item.layer.id], ["基準年", item.layer.dataSourceYear], ["地域単位", "API Feature"]]} /></section>)}</div></Accordion></div>;
 }
 
 function Accordion({ title, icon, children, open = false, note }: { title: string; icon: React.ReactNode; children: React.ReactNode; open?: boolean; note?: string }) {
