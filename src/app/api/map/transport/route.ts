@@ -141,21 +141,21 @@ function buildFallbackGeoJson(bounds: Bounds, detail: string) {
     ];
     return {
       type: "FeatureCollection" as const,
-      metadata: { source: "sample" as const, reason: "transport-upstream-error", detail, provider: "OpenStreetMap Overpass API" },
+      metadata: { source: "preview" as const, reason: "transport-upstream-error", detail, provider: "OpenStreetMap Overpass API" },
       features: [
         {
           type: "Feature" as const,
-          properties: { name: "東急田園都市線", railway: "rail", source: "sample" },
+          properties: { name: "東急田園都市線", railway: "rail", source: "preview" },
           geometry: { type: "LineString" as const, coordinates: denEnToshiStations.map(([lon, lat]) => [lon, lat]) }
         },
         {
           type: "Feature" as const,
-          properties: { name: "横浜市営地下鉄ブルーライン", railway: "subway", source: "sample" },
+          properties: { name: "横浜市営地下鉄ブルーライン", railway: "subway", source: "preview" },
           geometry: { type: "LineString" as const, coordinates: blueLine }
         },
         ...denEnToshiStations.map(([lon, lat, name]) => ({
           type: "Feature" as const,
-          properties: { name, railway: "station", source: "sample" },
+          properties: { name, railway: "station", source: "preview" },
           geometry: { type: "Point" as const, coordinates: [lon, lat] }
         }))
       ]
@@ -169,17 +169,17 @@ function buildFallbackGeoJson(bounds: Bounds, detail: string) {
     [east, centerLat + (north - south) * 0.18]
   ];
   const features = [
-    { type: "Feature" as const, properties: { name: "路線プレビュー", railway: "rail", source: "sample" }, geometry: { type: "LineString" as const, coordinates: line } },
+    { type: "Feature" as const, properties: { name: "路線プレビュー", railway: "rail", source: "preview" }, geometry: { type: "LineString" as const, coordinates: line } },
     ...[0.22, 0.52, 0.8].map((ratio, index) => ({
       type: "Feature" as const,
-      properties: { name: `駅プレビュー ${index + 1}`, railway: "station", source: "sample" },
+      properties: { name: `駅プレビュー ${index + 1}`, railway: "station", source: "preview" },
       geometry: { type: "Point" as const, coordinates: [west + (east - west) * ratio, centerLat + (north - south) * (ratio - 0.5) * 0.25] }
     }))
   ];
 
   return {
     type: "FeatureCollection" as const,
-    metadata: { source: "sample" as const, reason: "transport-upstream-error", detail, provider: "OpenStreetMap Overpass API" },
+    metadata: { source: "preview" as const, reason: "transport-upstream-error", detail, provider: "OpenStreetMap Overpass API" },
     features
   };
 }

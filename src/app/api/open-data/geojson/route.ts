@@ -179,7 +179,7 @@ function parseBounds(value: string | null): Bounds | null {
   return [south, west, north, east];
 }
 
-function withMetadata(geoJson: unknown, layer: OpenDataLayerDefinition, source: "gate-api" | "sample") {
+function withMetadata(geoJson: unknown, layer: OpenDataLayerDefinition, source: "gate-api" | "preview") {
   if (geoJson && typeof geoJson === "object") {
     return {
       ...(geoJson as Record<string, unknown>),
@@ -216,7 +216,7 @@ function buildFallbackGeoJson(
       properties: {
         name: `${layer.label} プレビュー ${index + 1}`,
         value: Math.round((index + 1) * 24.5),
-        source: "sample"
+        source: "preview"
       },
       geometry: {
         type: "Polygon",
@@ -236,7 +236,7 @@ function buildFallbackGeoJson(
   return {
     type: "FeatureCollection",
     metadata: {
-      source: "sample",
+      source: "preview",
       reason,
       upstream,
       layer

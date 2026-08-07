@@ -2176,6 +2176,7 @@ select {
 .layer-status-読込済 { color: var(--green); }
 .layer-status-エラー { color: var(--red); }
 .layer-status-読込中 { color: var(--blue); }
+.layer-status-プレビュー { color: var(--amber); }
 .layer-status-データなし { color: var(--amber); }
 .sidebar-source-note { display: flex; gap: 7px; margin: 12px; color: var(--muted); font-size: 10px; line-height: 1.6; }
 .sidebar-source-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--green); }
@@ -2227,6 +2228,14 @@ select {
 .drawer-section { padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .drawer-section-heading { margin-bottom: 10px; }
 .drawer-section-heading h3 { margin: 0; font-size: 13px; }
+.drawer-section-heading small { margin-left: auto; color: var(--muted); font-size: 9px; font-weight: 800; }
+.candidate-overview { background: #f8fbfa; }
+.drawer-candidate-list { display: grid; gap: 2px; }
+.drawer-candidate-list > button { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 7px; width: 100%; padding: 7px 5px; border: 1px solid transparent; border-bottom-color: var(--line); background: transparent; text-align: left; cursor: pointer; }
+.drawer-candidate-list > button:hover, .drawer-candidate-list > button.selected { border-color: var(--green); background: #ffffff; }
+.drawer-candidate-list .candidate-name strong { font-size: 11px; }
+.drawer-candidate-list .candidate-name small { font-size: 9px; }
+.drawer-candidate-list b { min-width: 31px; padding: 3px 5px; border-radius: 999px; font-size: 10px; text-align: center; }
 .rating-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rating-main strong { color: var(--green); font-size: 31px; line-height: 1; }
 .rating-section p, .drawer-copy { margin: 9px 0 0; line-height: 1.6; }
@@ -2258,6 +2267,21 @@ select {
   .procurement-layout { grid-template-columns: 270px minmax(0, 1fr) 340px; }
 }
 
+.own-kpi-form-wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.company-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 10px; }
+.company-kpi-grid > div { display: grid; gap: 2px; padding: 7px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
+.company-kpi-grid span { color: var(--muted); font-size: 9px; }
+.company-kpi-grid b { font-size: 12px; }
+.month-end-details { margin-top: 9px; padding-top: 8px; border-top: 1px dotted var(--line); }
+.month-end-details summary { color: var(--blue); font-size: 10px; font-weight: 800; cursor: pointer; }
+.month-end-details p { margin: 6px 0 0; color: var(--muted); font-size: 9px; line-height: 1.7; }
+.formula-panel { background: #f8fbfa; }
+.formula-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.formula-item { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.formula-item strong { font-size: 11px; }
+.formula-item b { color: var(--green); font-size: 11px; line-height: 1.45; }
+.formula-item small { color: var(--muted); font-size: 9px; line-height: 1.5; }
+
 @media (max-width: 980px) {
   .procurement-app { grid-template-rows: auto auto minmax(0, 1fr); height: auto; min-height: 100vh; overflow: visible; }
   .procurement-header { flex-wrap: wrap; gap: 12px; min-height: 60px; padding: 10px 14px; }
@@ -2281,6 +2305,14 @@ select {
   .procurement-searchbar { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px 12px; }.procurement-searchbar label:nth-of-type(4), .procurement-searchbar label:nth-of-type(5), .procurement-searchbar label:nth-of-type(6) { display: none; }.procurement-search-button { grid-column: 1 / -1; }
   .procurement-layout { display: block; height: auto; overflow: visible; }.procurement-sidebar { max-height: none; border-right: 0; }.procurement-map-panel { min-height: 580px; overflow: visible; }.procurement-map-canvas { height: 560px; }.procurement-map-canvas .tile-map { height: 560px; min-height: 560px; }.map-panel-toolbar { align-items: flex-start; flex-direction: column; }.map-toolbar-actions { width: 100%; justify-content: space-between; }
   .business-page-heading, .business-content { width: calc(100% - 24px); }.business-page-heading { display: block; padding-top: 22px; }.data-mode-badge { margin-top: 12px; }.competition-kpi-grid, .own-kpi-form { grid-template-columns: 1fr; }.business-toolbar { align-items: stretch; flex-direction: column; }.news-list article { grid-template-columns: 1fr; gap: 4px; }.bid-search-panel { grid-template-columns: 1fr; }.bid-list-item { grid-template-columns: 1fr; gap: 5px; }.bid-list-item b { text-align: left; }.bid-detail-actions { flex-wrap: wrap; }.simulator-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 980px) {
+  .formula-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .own-kpi-form-wide, .formula-grid { grid-template-columns: 1fr; }
 }
 
 @media print {

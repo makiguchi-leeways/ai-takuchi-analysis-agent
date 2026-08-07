@@ -45,7 +45,7 @@ type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
   features: GeoJsonFeature[];
   metadata?: {
-    source?: "gate-api" | "sample" | "openstreetmap";
+    source?: "gate-api" | "sample" | "preview" | "real-estate-library" | "openstreetmap";
     reason?: string;
     upstream?: {
       status?: number;
@@ -95,7 +95,7 @@ export interface MapFeatureSelection {
   title: string;
   rows: FeatureInfoRow[];
   properties: Record<string, unknown>;
-  source: "gate-api" | "sample" | "openstreetmap" | "unknown";
+  source: "gate-api" | "sample" | "preview" | "real-estate-library" | "openstreetmap" | "unknown";
 }
 
 interface OpenDataMarketMapProps {
@@ -104,7 +104,7 @@ interface OpenDataMarketMapProps {
   onEnabledLayerIdsChange?: (layerIds: string[]) => void;
   onFeatureSelect?: (selection: MapFeatureSelection) => void;
   onAreaSelect?: (area: RankedArea) => void;
-  onLayerStatusChange?: (statuses: Record<string, "待機" | "読込中" | "読込済" | "エラー" | "データなし">) => void;
+  onLayerStatusChange?: (statuses: Record<string, "待機" | "読込中" | "読込済" | "プレビュー" | "エラー" | "データなし">) => void;
 }
 
 type FeatureInteractionHandlers = {
@@ -114,6 +114,8 @@ type FeatureInteractionHandlers = {
   onPointerLeave: () => void;
   onPointerUp: (event: ReactPointerEvent<SVGElement>) => void;
 };
+
+const LIBRARY_LAYER_IDS = new Set(["transaction-price", "past-transactions", "use-district", "building-regulation", "development"]);
 
 export function OpenDataMarketMap({
   areas,
@@ -141,7 +143,10 @@ export function OpenDataMarketMap({
   const boundsParam = useMemo(() => formatBounds(getViewportBounds(view, size)), [view, size]);
   const enabledLayerIds = controlledLayerIds ?? internalLayerIds;
   const enabledLayers = OPEN_DATA_LAYERS.filter((layer) => enabledLayerIds.includes(layer.id));
-  const fallbackLayers = enabledLayers.filter((layer) => collections[layer.id]?.metadata?.source === "sample");
+  const fallbackLayers = enabledLayers.filter((layer) => {
+    const source = collections[layer.id]?.metadata?.source;
+    return source === "sample" || source === "preview";
+  });
   const missingApiKeyActive = fallbackLayers.some((layer) => collections[layer.id]?.metadata?.reason === "missing-api-key");
   const transportFallbackActive = fallbackLayers.some((layer) => layer.id === "transport");
 
@@ -192,7 +197,11 @@ export function OpenDataMarketMap({
           if (cached) return { layerId, payload: cached };
           const params = new URLSearchParams({ layer: layerId, bounds: boundsParam });
           try {
-            const endpoint = layerId === "transport" ? `/api/map/transport?${params.toString()}` : `/api/open-data/geojson?${params.toString()}`;
+            const endpoint = layerId === "transport"
+              ? `/api/map/transport?${params.toString()}`
+              : LIBRARY_LAYER_IDS.has(layerId)
+                ? `/api/open-data/library?${params.toString()}`
+                : `/api/open-data/geojson?${params.toString()}`;
             const response = await fetch(endpoint, {
               cache: "no-store",
               signal: controller.signal
@@ -227,10 +236,9 @@ export function OpenDataMarketMap({
           results.map((result) => {
             if ("error" in result) return [result.layerId, "エラー"];
             if (result.payload.features.length === 0) return [result.layerId, "データなし"];
-            if (result.payload.metadata?.source === "sample" && result.payload.metadata.reason !== "missing-api-key") {
-              return [result.layerId, "エラー"];
+            if (result.payload.metadata?.source === "sample" || result.payload.metadata?.source === "preview") {
+              return [result.layerId, "プレビュー"];
             }
-            if (result.payload.metadata?.source === "sample") return [result.layerId, "データなし"];
             return [result.layerId, "読込済"];
           })
         ));
@@ -498,10 +506,10 @@ export function OpenDataMarketMap({
         {fallbackLayers.length > 0 ? (
           <span className="map-warning">
             {missingApiKeyActive
-              ? "Gate API未接続のためプレビューGeoJSONを表示。Vercelの環境変数追加後に再デプロイしてください"
+              ? "Gate API未接続のためプレビューGeoJSONを表示しています"
               : transportFallbackActive
-                ? "路線・駅データを取得できないため、プレビュー表示中です"
-                : `Gate API未取得: ${fallbackLayers.map((layer) => layer.label).join("、")}（プレビュー表示）`}
+                ? "路線・駅データはプレビュー表示中です"
+                : `外部API未取得のためプレビュー表示中: ${fallbackLayers.map((layer) => layer.label).join("、")}`}
           </span>
         ) : null}
         {errorMessage ? <span className="map-error">{errorMessage}</span> : null}
@@ -752,8 +760,8 @@ function formatFeatureTitle(feature: GeoJsonFeature, layer: OpenDataLayerDefinit
 function buildFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition) {
   const properties = feature.properties ?? {};
   const address = firstString(properties, ["address", "name", "Name", "label", "area_name", "city_name"]);
-  const characteristic = firstString(properties, ["characteristics"]);
-  const description = firstString(properties, ["descriptions", "description"]);
+  const characteristic = firstString(properties, ["characteristics", "CityPlanning", "city_planning", "zoning", "development_status"]);
+  const description = firstString(properties, ["descriptions", "description", "transaction_period", "Period"]);
   const statistic = layerStatistic(properties, layer);
   const rows: FeatureInfoRow[] = [];
 
@@ -761,6 +769,13 @@ function buildFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinitio
   if (characteristic) rows.push({ label: layer.category === "school" ? "学校名" : "区分", value: characteristic });
   if (description) rows.push({ label: layer.category === "zoning" ? "建ぺい率 / 容積率" : "詳細", value: description });
   if (address) rows.push({ label: layer.category === "school" ? "所在地" : "エリア", value: address });
+
+  const additionalValues = numericEntries(properties)
+    .filter((entry) => !isSameNumericValue(entry, properties))
+    .slice(0, 3);
+  additionalValues.forEach((entry) => {
+    rows.push({ label: propertyLabel(entry.key), value: formatLayerNumber(entry.value, layer, entry.key) });
+  });
 
   if (rows.length === 0) rows.push({ label: "属性", value: "表示できる属性値がありません" });
 
@@ -778,21 +793,114 @@ function metricLabel(layer: OpenDataLayerDefinition) {
   if (layer.id === "household-income") return "世帯年収";
   if (layer.id === "rent-mean") return "賃料平均";
   if (layer.id === "gross-rate") return "キャップレート";
+  if (layer.id === "household-change") return "家族世帯割合";
+  if (layer.id === "future-population") return "将来人口";
+  if (layer.id === "transaction-price") return "取引価格";
+  if (layer.id === "past-transactions") return "過去取引価格";
+  if (layer.id === "use-district" || layer.id === "building-regulation") return "建蔽率";
   return "統計値";
 }
 
 function layerStatistic(properties: Record<string, unknown>, layer: OpenDataLayerDefinition) {
-  const value = firstDefined(properties, ["statistics", "value", "mean", "data_value", "price", "rate"]);
-  if (typeof value === "number") {
-    if (layer.id === "gross-rate") return value <= 1 ? `${(value * 100).toFixed(2)}%` : `${value.toLocaleString("ja-JP")}%`;
-    if (layer.id === "population-density") return `${Math.round(value).toLocaleString("ja-JP")}人/k㎡`;
-    if (layer.id === "household-income") return `${Math.round(value).toLocaleString("ja-JP")}万円`;
-    if (layer.id === "land-price") return `${Math.round(value).toLocaleString("ja-JP")}円/㎡`;
-    if (layer.id === "rent-mean") return `${Math.round(value).toLocaleString("ja-JP")}円`;
-    return value.toLocaleString("ja-JP");
+  const entry = findNumericEntry(properties);
+  if (entry) return formatLayerNumber(entry.value, layer, entry.key);
+  const text = firstString(properties, ["statistics", "value", "mean", "data_value", "price", "rate"]);
+  return text ?? null;
+}
+
+type NumericEntry = { key: string; value: number };
+
+const PREFERRED_NUMERIC_KEYS = [
+  "statistics",
+  "value",
+  "mean",
+  "average",
+  "avg",
+  "data_value",
+  "dataValue",
+  "population_density",
+  "total_population",
+  "total_population_future",
+  "household_income_mean",
+  "family_household_ratio",
+  "single_household_ratio",
+  "total_selling_price_mean",
+  "transaction_price",
+  "selling_price",
+  "sale_price",
+  "price",
+  "rate",
+  "coverage_ratio",
+  "floor_area_ratio",
+  "CoverageRatio",
+  "FloorAreaRatio"
+];
+
+function findNumericEntry(properties: Record<string, unknown>) {
+  for (const key of PREFERRED_NUMERIC_KEYS) {
+    const value = numericValue(properties[key]);
+    if (value !== null) return { key, value };
   }
-  if (typeof value === "string" && value.trim()) return value;
-  return null;
+  return numericEntries(properties)[0] ?? null;
+}
+
+function numericEntries(properties: Record<string, unknown>) {
+  return Object.entries(properties)
+    .filter(([key]) => !isCoordinateKey(key))
+    .map(([key, value]) => {
+      const numeric = numericValue(value);
+      return numeric === null ? null : { key, value: numeric };
+    })
+    .filter((entry): entry is NumericEntry => entry !== null);
+}
+
+function numericValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return null;
+  const normalized = value.replaceAll(",", "").trim();
+  if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|円|万円|人|世帯|㎡|m2|m²)?$/.test(normalized)) return null;
+  const parsed = Number(normalized.replace(/(?:%|円|万円|人|世帯|㎡|m2|m²)$/u, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatLayerNumber(value: number, layer: OpenDataLayerDefinition, key: string) {
+  if (layer.id === "gross-rate" || /ratio|rate|growth|増減/u.test(key)) {
+    const percentValue = layer.id === "gross-rate" && value <= 1 ? value * 100 : value;
+    return `${percentValue.toLocaleString("ja-JP", { maximumFractionDigits: 2 })}%`;
+  }
+  if (layer.id === "population-density" || layer.id === "future-population" || /population|household_count/u.test(key)) {
+    return `${Math.round(value).toLocaleString("ja-JP")}人`;
+  }
+  if (layer.id === "household-income" || /income/u.test(key)) return `${Math.round(value).toLocaleString("ja-JP")}万円`;
+  if (layer.id === "land-price") return `${Math.round(value).toLocaleString("ja-JP")}円/㎡`;
+  if (layer.id === "rent-mean") return `${Math.round(value).toLocaleString("ja-JP")}円`;
+  if (layer.id === "transaction-price" || layer.id === "past-transactions" || /price|Price/u.test(key)) {
+    const manYen = value >= 10000 ? value / 10000 : value;
+    return `${Math.round(manYen).toLocaleString("ja-JP")}万円`;
+  }
+  if (/coverage|Coverage/u.test(key)) return `${value.toLocaleString("ja-JP")}％`;
+  if (/floor|Floor/u.test(key)) return `${value.toLocaleString("ja-JP")}％`;
+  return value.toLocaleString("ja-JP", { maximumFractionDigits: 2 });
+}
+
+function isSameNumericValue(entry: NumericEntry, properties: Record<string, unknown>) {
+  const statisticEntry = findNumericEntry(properties);
+  return statisticEntry?.key === entry.key && statisticEntry.value === entry.value;
+}
+
+function propertyLabel(key: string) {
+  const labels: Record<string, string> = {
+    family_household_ratio: "家族世帯割合",
+    single_household_ratio: "単身世帯割合",
+    total_population_future: "将来人口",
+    transaction_price: "取引価格",
+    land_area: "土地面積",
+    coverage_ratio: "建蔽率",
+    floor_area_ratio: "容積率",
+    CoverageRatio: "建蔽率",
+    FloorAreaRatio: "容積率"
+  };
+  return labels[key] ?? key.replaceAll("_", " ");
 }
 
 function firstString(properties: Record<string, unknown>, keys: string[]) {
@@ -803,12 +911,8 @@ function firstString(properties: Record<string, unknown>, keys: string[]) {
   return null;
 }
 
-function firstDefined(properties: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    const value = properties[key];
-    if (value !== null && value !== undefined && value !== "") return value;
-  }
-  return null;
+function isCoordinateKey(key: string) {
+  return /^(lat|lng|lon|latitude|longitude|x|y|id|code)$/i.test(key);
 }
 
 function getOpenDataLayerLabel(layerId: string) {

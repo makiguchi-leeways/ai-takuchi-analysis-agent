@@ -61,7 +61,7 @@ type LayerControl = {
   description?: string;
 };
 
-type LayerStatus = "待機" | "読込中" | "読込済" | "エラー" | "データなし";
+type LayerStatus = "待機" | "読込中" | "読込済" | "プレビュー" | "エラー" | "データなし";
 
 const ANALYSIS_LAYER_IDS = new Set([
   "demand-score",
@@ -89,8 +89,8 @@ const LAYER_CATEGORIES: LayerCategory[] = [
     layers: [
       { id: "land-price", label: "地価公示", color: "#a86b15", source: "Gate API", mapLayerId: "land-price" },
       { id: "rent-mean", label: "賃料平均", color: "#7c4d9f", source: "Gate API", mapLayerId: "rent-mean" },
-      { id: "transaction-price", label: "不動産取引価格", color: "#2f7f9f", source: "不動産情報ライブラリAPI" },
-      { id: "past-transactions", label: "過去取引・売出土地", color: "#688b84", source: "Gate API / 不動産情報ライブラリAPI" }
+      { id: "transaction-price", label: "不動産取引価格", color: "#2f7f9f", source: "不動産情報ライブラリAPI", mapLayerId: "transaction-price" },
+      { id: "past-transactions", label: "過去取引・売出土地", color: "#688b84", source: "不動産情報ライブラリAPI", mapLayerId: "past-transactions" }
     ]
   },
   {
@@ -99,8 +99,8 @@ const LAYER_CATEGORIES: LayerCategory[] = [
     layers: [
       { id: "population-density", label: "人口・人口増減", color: "#12665d", source: "Gate API / e-Stat", mapLayerId: "population-density" },
       { id: "household-income", label: "世帯年収", color: "#245f9f", source: "Gate API / RESAS", mapLayerId: "household-income" },
-      { id: "household-change", label: "世帯増減・年齢構成", color: "#4e7890", source: "e-Stat" },
-      { id: "future-population", label: "子育て世帯・将来人口", color: "#7c4d9f", source: "e-Stat / RESAS" }
+      { id: "household-change", label: "世帯増減・年齢構成", color: "#4e7890", source: "Gate API / e-Stat", mapLayerId: "household-change" },
+      { id: "future-population", label: "子育て世帯・将来人口", color: "#7c4d9f", source: "Gate API / e-Stat / RESAS", mapLayerId: "future-population" }
     ]
   },
   {
@@ -108,8 +108,8 @@ const LAYER_CATEGORIES: LayerCategory[] = [
     label: "都市計画・建築",
     layers: [
       { id: "use-district", label: "用途地域", color: "#a93a34", source: "Gate API / 不動産情報ライブラリAPI", mapLayerId: "use-district" },
-      { id: "building-regulation", label: "建蔽率・容積率", color: "#7d5e3e", source: "不動産情報ライブラリAPI" },
-      { id: "development", label: "建築確認・開発情報", color: "#4e7890", source: "不動産情報ライブラリAPI" }
+      { id: "building-regulation", label: "建蔽率・容積率", color: "#7d5e3e", source: "不動産情報ライブラリAPI", mapLayerId: "building-regulation" },
+      { id: "development", label: "建築確認・開発情報", color: "#4e7890", source: "不動産情報ライブラリAPI", mapLayerId: "development" }
     ]
   },
   {
@@ -311,17 +311,6 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
             <div><Layers size={18} /><div><strong>レイヤー</strong><small>{enabledLayerIds.length}件を表示中</small></div></div>
             <span className="sidebar-help-icon" title="レイヤー操作の説明"><CircleHelp size={16} /></span>
           </div>
-          <section className="sidebar-summary">
-            <div className="summary-label">選択エリア</div>
-            <strong>{primaryArea.area.neighborhood}</strong>
-            <div className="summary-score-line"><span className={opportunityTone(primaryArea.opportunityScore)}>{opportunityLabel(primaryArea.opportunityScore)}</span><b>{score(primaryArea.opportunityScore)}</b></div>
-            <div className="summary-mini-grid"><span>需要 <b>{score(primaryArea.demandScore)}</b></span><span>供給 <b>{score(primaryArea.supplyScore)}</b></span><span>需給差 <b>{primaryArea.demandSupplyGap > 0 ? "+" : ""}{score(primaryArea.demandSupplyGap)}</b></span><span>候補 <b>{topTen.length}件</b></span></div>
-          </section>
-          <section className="candidate-ranking">
-            <div className="candidate-ranking-heading"><strong>仕入候補 TOP10</strong><small>クリックで詳細を表示</small></div>
-            {topTen.map((item) => <button className={selectedArea?.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => handleAreaSelect(item)} type="button"><span className="candidate-rank">{item.rank}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(item.opportunityScore)}>{score(item.opportunityScore)}</b></button>)}
-          </section>
-
           <div className="layer-category-list">
             {enabledCategories.map((category) => (
               <details className="layer-category" key={category.id} open={category.id === "procurement" || category.activeCount > 0}>
@@ -365,8 +354,8 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 
         {drawerOpen ? (
           <aside className="procurement-drawer" aria-label="選択エリア詳細">
-            <div className="drawer-header"><div><span>{selectedFeature ? selectedFeature.layer.label : "仕入候補の詳細"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div><button aria-label="詳細を閉じる" onClick={() => setDrawerOpen(false)} type="button"><X size={18} /></button></div>
-            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <AreaDetail area={primaryArea} report={report} />}
+            <div className="drawer-header"><div><span>{selectedFeature ? "地図データ詳細" : "仕入れ候補・仕入れ分析"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div><button aria-label="詳細を閉じる" onClick={() => setDrawerOpen(false)} type="button"><X size={18} /></button></div>
+            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={topTen} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} /></>}
             <section className="drawer-section simulator-section">
               <div className="drawer-section-heading"><Calculator size={16} /><h3>仕入シミュレーション</h3></div>
               <div className="simulator-grid">
@@ -389,7 +378,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 function AreaDetail({ area, report }: { area: RankedArea; report: MarketReport }) {
   const breakdown = area.scoreBreakdown.filter((item) => item.value !== null);
   return <div className="drawer-content">
-    <section className="drawer-section rating-section"><div className="rating-main"><span className={opportunityTone(area.opportunityScore)}>{opportunityLabel(area.opportunityScore)}</span><strong>{score(area.opportunityScore)}</strong></div><p>{area.reasons[3] ?? area.reasons[0]}</p></section>
+    <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(area.opportunityScore)}>{opportunityLabel(area.opportunityScore)}</span><strong>{score(area.opportunityScore)}</strong></div><p>{area.reasons[3] ?? area.reasons[0]}</p></section>
     <Accordion title="総合評価・スコア内訳" icon={<TrendingUp size={16} />} open><div className="breakdown-list">{breakdown.map((item) => <div className="breakdown-row" key={item.key}><span>{item.label}<small>{item.source}</small></span><b>{item.value === null ? "データなし" : score(item.value)}</b><i style={{ width: `${Math.max(5, Math.min(100, item.value ?? 0))}%` }} /></div>)}</div></Accordion>
     <Accordion title="需給" icon={<BarChart3 size={16} />} open><MetricList items={[["需要スコア", score(area.demandScore)], ["供給スコア", score(area.supplyScore)], ["需給ギャップ", `${area.demandSupplyGap > 0 ? "+" : ""}${score(area.demandSupplyGap)}`], ["流動性", score(area.liquidityScore)]]} /></Accordion>
     <Accordion title="相場・人口" icon={<MapPinned size={16} />}><MetricList items={[["人口", `${area.area.population.toLocaleString("ja-JP")}人`], ["世帯数", `${area.area.households.toLocaleString("ja-JP")}世帯`], ["人口5年増減", percent(area.area.populationGrowthRate)], ["平均世帯年収", manYen(area.area.averageIncomeManYen)], ["土地平均", `${manYen(area.area.averageLandPriceManYenPerTsubo)}/坪`], ["取引件数", `${area.area.transactionCount}件`]]} /></Accordion>
@@ -398,8 +387,26 @@ function AreaDetail({ area, report }: { area: RankedArea; report: MarketReport }
   </div>;
 }
 
+function CandidateOverview({ areas, selectedArea, onAreaSelect }: { areas: RankedArea[]; selectedArea: RankedArea; onAreaSelect: (area: RankedArea) => void }) {
+  return <section className="drawer-section candidate-overview">
+    <div className="drawer-section-heading"><Target size={16} /><h3>仕入れ候補</h3><small>TOP10 / 地図上の候補</small></div>
+    <div className="drawer-candidate-list">
+      {areas.map((item) => <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{item.rank}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(item.opportunityScore)}>{score(item.opportunityScore)}</b></button>)}
+    </div>
+  </section>;
+}
+
 function FeatureDetail({ feature }: { feature: MapFeatureSelection }) {
-  return <div className="drawer-content"><section className="drawer-section rating-section"><div className="feature-source-badge" style={{ borderColor: feature.layer.color }}><span style={{ background: feature.layer.color }} />{feature.layer.label}</div><p>地図上で選択したFeatureの実データを表示しています。</p></section><Accordion title="Feature属性" icon={<Database size={16} />} open><MetricList items={feature.rows.map((row) => [row.label, row.value])} /></Accordion><Accordion title="取得情報" icon={<CircleHelp size={16} />} open><MetricList items={[["データソース", feature.source === "sample" ? "開発用サンプル" : feature.source === "gate-api" ? "Gate API" : "未特定"], ["レイヤーID", feature.layer.id], ["基準年", feature.layer.dataSourceYear], ["地域単位", "API Feature"]]} /></Accordion></div>;
+  const sourceLabel = feature.source === "gate-api"
+    ? "Gate API"
+    : feature.source === "real-estate-library"
+      ? "国土交通省 不動産情報ライブラリAPI"
+      : feature.source === "sample" || feature.source === "preview"
+        ? "接続前プレビュー"
+        : feature.source === "openstreetmap"
+          ? "OpenStreetMap / Overpass"
+          : "未特定";
+  return <div className="drawer-content"><section className="drawer-section rating-section"><div className="feature-source-badge" style={{ borderColor: feature.layer.color }}><span style={{ background: feature.layer.color }} />{feature.layer.label}</div><p>地図上で選択したFeatureの実データを表示しています。</p></section><Accordion title="Feature属性" icon={<Database size={16} />} open><MetricList items={feature.rows.map((row) => [row.label, row.value])} /></Accordion><Accordion title="取得情報" icon={<CircleHelp size={16} />} open><MetricList items={[["データソース", sourceLabel], ["レイヤーID", feature.layer.id], ["基準年", feature.layer.dataSourceYear], ["地域単位", "API Feature"]]} /></Accordion></div>;
 }
 
 function Accordion({ title, icon, children, open = false, note }: { title: string; icon: React.ReactNode; children: React.ReactNode; open?: boolean; note?: string }) {

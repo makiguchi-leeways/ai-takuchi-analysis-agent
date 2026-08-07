@@ -34,6 +34,27 @@ export const OPEN_DATA_LAYERS: OpenDataLayerDefinition[] = [
     strokeOpacity: 0.72
   },
   {
+    id: "household-change",
+    label: "世帯増減・年齢構成",
+    category: "household",
+    dataName: "family_household_ratio",
+    dataSourceYear: "2020",
+    color: "#4e7890",
+    fillOpacity: 0.18,
+    strokeOpacity: 0.72,
+    rateUnitType: "1"
+  },
+  {
+    id: "future-population",
+    label: "子育て世代・将来人口",
+    category: "population",
+    dataName: "total_population_future",
+    dataSourceYear: "2025",
+    color: "#7c4d9f",
+    fillOpacity: 0.18,
+    strokeOpacity: 0.72
+  },
+  {
     id: "rent-mean",
     label: "賃料平均",
     category: "rent",
@@ -64,6 +85,26 @@ export const OPEN_DATA_LAYERS: OpenDataLayerDefinition[] = [
     strokeOpacity: 0.72
   },
   {
+    id: "transaction-price",
+    label: "不動産取引価格",
+    category: "land",
+    dataName: "real_estate_transaction_price",
+    dataSourceYear: "2025",
+    color: "#2f7f9f",
+    fillOpacity: 0.2,
+    strokeOpacity: 0.76
+  },
+  {
+    id: "past-transactions",
+    label: "過去取引・売出土地",
+    category: "land",
+    dataName: "real_estate_past_transaction",
+    dataSourceYear: "2024",
+    color: "#688b84",
+    fillOpacity: 0.16,
+    strokeOpacity: 0.76
+  },
+  {
     id: "transport",
     label: "鉄道路線・駅",
     category: "transport",
@@ -91,6 +132,26 @@ export const OPEN_DATA_LAYERS: OpenDataLayerDefinition[] = [
     dataSourceYear: "2020",
     color: "#a93a34",
     fillOpacity: 0.16,
+    strokeOpacity: 0.74
+  },
+  {
+    id: "building-regulation",
+    label: "建蔽率・容積率",
+    category: "zoning",
+    dataName: "building_regulation",
+    dataSourceYear: "最新",
+    color: "#7d5e3e",
+    fillOpacity: 0.12,
+    strokeOpacity: 0.74
+  },
+  {
+    id: "development",
+    label: "建築確認・開発情報",
+    category: "zoning",
+    dataName: "development_information",
+    dataSourceYear: "最新",
+    color: "#4e7890",
+    fillOpacity: 0.12,
     strokeOpacity: 0.74
   }
 ];
