@@ -915,6 +915,14 @@ td a {
   outline: 3px solid rgba(255, 255, 255, 0.72);
 }
 
+.geo-map-pin.selected {
+  z-index: 6;
+  width: 36px;
+  height: 36px;
+  outline: 3px solid var(--green);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9), 0 8px 18px rgba(23, 32, 35, 0.25);
+}
+
 .map-attribution {
   position: absolute;
   right: 8px;
@@ -2203,6 +2211,20 @@ select {
 .layer-status-データなし { color: var(--amber); }
 .sidebar-source-note { display: flex; gap: 7px; margin: 12px; color: var(--muted); font-size: 10px; line-height: 1.6; }
 .sidebar-source-note svg { flex: 0 0 auto; margin-top: 2px; color: var(--green); }
+.sidebar-selected-area { margin: 12px; padding: 11px; border: 1px solid #b7d8ce; border-left: 3px solid var(--green); border-radius: 6px; background: #f5faf8; }
+.sidebar-selected-area-heading { display: flex; align-items: flex-start; gap: 7px; }
+.sidebar-selected-area-heading > svg { flex: 0 0 auto; margin-top: 2px; color: var(--green); }
+.sidebar-selected-area-heading span, .sidebar-selected-area-heading strong, .sidebar-selected-area-heading small { display: block; }
+.sidebar-selected-area-heading span { color: var(--green); font-size: 9px; font-weight: 900; }
+.sidebar-selected-area-heading strong { margin-top: 2px; font-size: 13px; }
+.sidebar-selected-area-heading small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.sidebar-selected-score { display: flex; align-items: center; gap: 7px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.sidebar-selected-score span { color: var(--muted); font-size: 10px; font-weight: 800; }
+.sidebar-selected-score strong { margin-left: auto; color: var(--green); font-size: 22px; line-height: 1; }
+.sidebar-selected-score em { border-radius: 999px; padding: 3px 5px; font-size: 9px; font-style: normal; font-weight: 900; }
+.sidebar-selected-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 9px; margin-top: 9px; }
+.sidebar-selected-metrics div { display: flex; justify-content: space-between; gap: 5px; padding-top: 5px; border-top: 1px dotted var(--line); }
+.sidebar-selected-metrics span, .sidebar-selected-metrics b { font-size: 9px; }.sidebar-selected-metrics span { color: var(--muted); }.sidebar-selected-metrics b { text-align: right; }
 
 .procurement-map-panel {
   display: grid;

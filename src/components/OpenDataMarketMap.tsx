@@ -102,6 +102,7 @@ export interface MapFeatureSelection extends MapFeatureSelectionItem {
 interface OpenDataMarketMapProps {
   areas: RankedArea[];
   enabledLayerIds?: string[];
+  selectedAreaId?: string;
   onEnabledLayerIdsChange?: (layerIds: string[]) => void;
   onFeatureSelect?: (selection: MapFeatureSelection) => void;
   onAreaSelect?: (area: RankedArea) => void;
@@ -121,6 +122,7 @@ const LIBRARY_LAYER_IDS = new Set(["transaction-price", "past-transactions", "us
 export function OpenDataMarketMap({
   areas,
   enabledLayerIds: controlledLayerIds,
+  selectedAreaId,
   onEnabledLayerIdsChange,
   onFeatureSelect,
   onAreaSelect,
@@ -498,7 +500,8 @@ export function OpenDataMarketMap({
               onAreaSelect ? (
                 <button
                   aria-label={`${item.area.neighborhood}の詳細を開く`}
-                  className={`geo-map-pin ${quadrantTone(item.quadrant)}`}
+                  aria-pressed={selectedAreaId === item.area.id}
+                  className={`geo-map-pin ${quadrantTone(item.quadrant)}${selectedAreaId === item.area.id ? " selected" : ""}`}
                   key={item.area.id}
                   onClick={(event) => {
                     event.stopPropagation();
