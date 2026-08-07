@@ -391,7 +391,7 @@ function CandidateOverview({ areas, selectedArea, onAreaSelect }: { areas: Ranke
   return <section className="drawer-section candidate-overview">
     <div className="drawer-section-heading"><Target size={16} /><h3>仕入れ候補</h3><small>TOP10 / 地図上の候補</small></div>
     <div className="drawer-candidate-list">
-      {areas.map((item) => <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{item.rank}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(item.opportunityScore)}>{score(item.opportunityScore)}</b></button>)}
+      {areas.map((item, index) => <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{index + 1}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(item.opportunityScore)}>{score(item.opportunityScore)}</b></button>)}
     </div>
   </section>;
 }
