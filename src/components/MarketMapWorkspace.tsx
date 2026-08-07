@@ -451,12 +451,12 @@ function AreaDetail({ area, report, adjustedOpportunity, listingSearch, selected
   const breakdown = area.scoreBreakdown.filter((item) => item.value !== null);
   return <div className="drawer-content">
     <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</span><strong>{score(adjustedOpportunity.score)}</strong></div><p>{adjustedOpportunity.recalculated ? "選択中の複数レイヤーを反映して仕入れ評点を再計算しています。" : area.reasons[3] ?? area.reasons[0]}</p>{adjustedOpportunity.recalculated ? <small className="drawer-note">反映：{adjustedOpportunity.activeLabels.join("・")}（基準評点 {score(adjustedOpportunity.baseScore)}）</small> : null}</section>
+    <LandListingPanel area={area} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearch={() => onSearchListings(area)} onSelectListing={onSelectListing} />
     <Accordion title="総合評価・スコア内訳" icon={<TrendingUp size={16} />} open><div className="breakdown-list">{breakdown.map((item) => <div className="breakdown-row" key={item.key}><span>{item.label}<small>{item.source}</small></span><b>{item.value === null ? "データなし" : score(item.value)}</b><i style={{ width: `${Math.max(5, Math.min(100, item.value ?? 0))}%` }} /></div>)}</div></Accordion>
     <Accordion title="需給" icon={<BarChart3 size={16} />} open><MetricList items={[["需要スコア", score(area.demandScore)], ["供給スコア", score(area.supplyScore)], ["需給ギャップ", `${area.demandSupplyGap > 0 ? "+" : ""}${score(area.demandSupplyGap)}`], ["流動性", score(area.liquidityScore)]]} /></Accordion>
     <Accordion title="相場・人口" icon={<MapPinned size={16} />} open><MetricList items={[["人口", `${area.area.population.toLocaleString("ja-JP")}人`], ["世帯数", `${area.area.households.toLocaleString("ja-JP")}世帯`], ["人口5年増減", percent(area.area.populationGrowthRate)], ["世帯増減", percent(area.area.householdGrowthRate)], ["平均世帯年収", manYen(area.area.averageIncomeManYen)], ["土地平均", `${manYen(area.area.averageLandPriceManYenPerTsubo)}/坪`], ["取引件数", `${area.area.transactionCount}件`]]} /></Accordion>
     <Accordion title="都市計画・ハザード" icon={<ShieldAlert size={16} />}><MetricList items={[["用途地域", "データなし"], ["洪水", "データなし"], ["土砂災害", "データなし"]]} /><small className="drawer-note">ハザードAPI接続後に地点単位で表示</small></Accordion>
     <Accordion title="仕入判断メモ" icon={<Target size={16} />}><p className="drawer-copy">{report.actions[0]}</p><p className="drawer-copy">{report.actions[1]}</p></Accordion>
-    <LandListingPanel area={area} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearch={() => onSearchListings(area)} onSelectListing={onSelectListing} />
   </div>;
 }
 
@@ -537,12 +537,18 @@ function resolveAreas(areas: RankedArea[], query: SearchForm) {
   const searchText = `${query.station} ${query.placeName}`.trim().toLowerCase();
   const filtered = searchText ? base.filter((item) => `${item.area.neighborhood} ${item.area.municipality}`.toLowerCase().includes(searchText)) : base;
   const candidates = filtered.length > 0 ? filtered : base.length > 0 ? base : areas;
-  return [...candidates].sort((a, b) => {
-    const aExact = a.area.neighborhood === query.address ? 1 : 0;
-    const bExact = b.area.neighborhood === query.address ? 1 : 0;
-    if (aExact !== bExact) return bExact - aExact;
-    return b.opportunityScore - a.opportunityScore || a.rank - b.rank;
-  });
+  return [...candidates]
+    .sort((a, b) => {
+      const aExact = a.area.neighborhood === query.address ? 1 : 0;
+      const bExact = b.area.neighborhood === query.address ? 1 : 0;
+      if (aExact !== bExact) return bExact - aExact;
+      return b.opportunityScore - a.opportunityScore || a.rank - b.rank;
+    })
+    .map((item, index) => ({
+      ...item,
+      // The map and candidate list use the selected municipality's local order.
+      rank: index + 1,
+    }));
 }
 
 function unique(values: string[]) {
