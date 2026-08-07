@@ -393,7 +393,6 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
               </details>
             ))}
           </div>
-          <SelectedAreaSummary area={primaryArea} adjustedOpportunity={adjustedOpportunity} selected={Boolean(selectedArea)} />
           <div className="sidebar-source-note"><Database size={14} /><span>外部APIはレイヤーON時に必要な範囲だけ取得します。取得値には出典・基準日を付けて表示します。</span></div>
         </aside>
 
@@ -438,12 +437,11 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 }
 
 function AreaDetail({ area, report, adjustedOpportunity, listingSearch, selectedListingId, onSearchListings, onSelectListing }: { area: RankedArea; report: MarketReport; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore>; listingSearch: ListingSearchState; selectedListingId: string | null; onSearchListings: (area: RankedArea) => void; onSelectListing: (listing: LandListing) => void }) {
-  const breakdown = area.scoreBreakdown.filter((item) => item.value !== null);
+  const breakdown = area.scoreBreakdown.filter((item) => item.value !== null && !["demand", "supplyDemandGap"].includes(item.key));
   return <div className="drawer-content">
     <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</span><strong>{score(adjustedOpportunity.score)}</strong></div><p>{adjustedOpportunity.recalculated ? "仕入分析の5指標と選択中の外部レイヤーを反映して仕入れ評点を算出しています。" : area.reasons[3] ?? area.reasons[0]}</p><ProcurementAnalysisDetails area={area} />{adjustedOpportunity.recalculated ? <small className="drawer-note">評価項目：{adjustedOpportunity.activeLabels.join("・")}（基準評点 {score(adjustedOpportunity.baseScore)}）</small> : null}</section>
     <LandListingPanel area={area} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearch={() => onSearchListings(area)} onSelectListing={onSelectListing} />
-    <Accordion title="総合評価・スコア内訳" icon={<TrendingUp size={16} />} open><div className="breakdown-list">{breakdown.map((item) => <div className="breakdown-row" key={item.key}><span>{item.label}<small>{item.source}</small></span><b>{item.value === null ? "データなし" : score(item.value)}</b><i style={{ width: `${Math.max(5, Math.min(100, item.value ?? 0))}%` }} /></div>)}</div></Accordion>
-    <Accordion title="需給" icon={<BarChart3 size={16} />} open><MetricList items={[["需要スコア", score(area.demandScore)], ["供給スコア", score(area.supplyScore)], ["需給ギャップ", `${area.demandSupplyGap > 0 ? "+" : ""}${score(area.demandSupplyGap)}`], ["流動性", score(area.liquidityScore)]]} /></Accordion>
+    <Accordion title="補助指標・スコア内訳" icon={<TrendingUp size={16} />} open><div className="breakdown-list">{breakdown.map((item) => <div className="breakdown-row" key={item.key}><span>{item.label}<small>{item.source}</small></span><b>{item.value === null ? "データなし" : score(item.value)}</b><i style={{ width: `${Math.max(5, Math.min(100, item.value ?? 0))}%` }} /></div>)}</div></Accordion>
     <Accordion title="相場・人口" icon={<MapPinned size={16} />} open><MetricList items={[["人口", `${area.area.population.toLocaleString("ja-JP")}人`], ["世帯数", `${area.area.households.toLocaleString("ja-JP")}世帯`], ["人口5年増減", percent(area.area.populationGrowthRate)], ["世帯増減", percent(area.area.householdGrowthRate)], ["平均世帯年収", manYen(area.area.averageIncomeManYen)], ["土地平均", `${manYen(area.area.averageLandPriceManYenPerTsubo)}/坪`], ["取引件数", `${area.area.transactionCount}件`]]} /></Accordion>
     <Accordion title="都市計画・ハザード" icon={<ShieldAlert size={16} />}><MetricList items={[["用途地域", "データなし"], ["洪水", "データなし"], ["土砂災害", "データなし"]]} /><small className="drawer-note">ハザードAPI接続後に地点単位で表示</small></Accordion>
     <Accordion title="仕入判断メモ" icon={<Target size={16} />}><p className="drawer-copy">{report.actions[0]}</p><p className="drawer-copy">{report.actions[1]}</p></Accordion>
@@ -475,14 +473,6 @@ function LandListingPanel({ area, listingSearch, selectedListingId, onSearch, on
         })}
       </div>
     </> : null}
-  </section>;
-}
-
-function SelectedAreaSummary({ area, adjustedOpportunity, selected }: { area: RankedArea; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore>; selected: boolean }) {
-  return <section className="sidebar-selected-area" aria-live="polite">
-    <div className="sidebar-selected-area-heading"><Target size={15} /><div><span>{selected ? "地図で選択中" : "分析対象"}</span><strong>{area.area.neighborhood}</strong><small>{area.area.municipality} / {area.area.analysisUnit}</small></div></div>
-    <div className="sidebar-selected-score"><span>仕入評点</span><strong>{score(adjustedOpportunity.score)}</strong><em className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</em></div>
-    <div className="sidebar-selected-metrics"><div><span>需要</span><b>{score(area.demandScore)}</b></div><div><span>供給</span><b>{score(area.supplyScore)}</b></div><div><span>需給ギャップ</span><b>{score(area.demandSupplyGap)}</b></div><div><span>土地平均</span><b>{manYen(area.area.averageLandPriceManYenPerTsubo)}/坪</b></div></div>
   </section>;
 }
 
