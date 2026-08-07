@@ -2260,6 +2260,7 @@ select {
 .procurement-map-canvas .open-data-map-shell { grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; min-height: 0; gap: 0; }
 .procurement-map-canvas .map-control-bar { min-height: 45px; padding: 6px 10px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); }
 .procurement-map-canvas .map-control-hint { color: var(--muted); font-size: 10px; font-weight: 800; }
+.map-selection-hint { color: var(--muted); font-size: 10px; font-weight: 800; }
 .procurement-map-canvas .tile-map { height: auto; min-height: 0; border: 0; border-radius: 0; }
 .procurement-map-canvas .map-status-row { min-height: 34px; padding: 6px 10px; background: rgba(255,255,255,.95); border-top: 1px solid var(--line); }
 .geo-map-pin { appearance: none; padding: 0; cursor: pointer; }

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  ArrowUpRight,
   BarChart3,
   Bookmark,
   Building2,
@@ -182,7 +181,6 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   const [layerStatuses, setLayerStatuses] = useState<Record<string, LayerStatus>>({});
   const [selectedArea, setSelectedArea] = useState<RankedArea | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [searchedAt, setSearchedAt] = useState("初期表示");
@@ -263,7 +261,6 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   function handleAreaSelect(area: RankedArea) {
     setSelectedArea(area);
     setSelectedFeature(null);
-    setDrawerOpen(true);
     setSimulator((current) => ({
       ...current,
       expectedSalePriceManYen: area.area.averageSalePriceManYen
@@ -272,7 +269,6 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 
   function handleFeatureSelect(feature: MapFeatureSelection) {
     setSelectedFeature(feature);
-    setDrawerOpen(true);
   }
 
   function updateSimulator<K extends keyof ProcurementCeilingInput>(key: K, value: number) {
@@ -362,7 +358,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
         <section className="procurement-map-panel">
           <div className="map-panel-toolbar no-print">
             <div><span>分析対象</span><strong>{query.municipality} {query.address}</strong><small>{searchedAt} / {report.sourceMode === "sample" ? "開発用サンプルデータ" : "Production Data"}</small></div>
-            <div className="map-toolbar-actions"><span className="map-legend"><i className="legend-dot legend-good" />有望 <i className="legend-dot legend-caution" />慎重 <i className="legend-dot legend-stop" />非推奨</span><button title="詳細ドロワーを開閉" onClick={() => setDrawerOpen((value) => !value)} type="button">{drawerOpen ? "詳細を隠す" : "詳細を表示"}<ArrowUpRight size={15} /></button></div>
+            <div className="map-toolbar-actions"><span className="map-legend"><i className="legend-dot legend-good" />有望 <i className="legend-dot legend-caution" />慎重 <i className="legend-dot legend-stop" />非推奨</span><strong className="map-selection-hint">右側に選択エリアの詳細を表示</strong></div>
           </div>
           <div className="procurement-map-canvas">
             <OpenDataMarketMap
@@ -377,9 +373,8 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
           </div>
         </section>
 
-        {drawerOpen ? (
-          <aside className="procurement-drawer" aria-label="選択エリア詳細">
-            <div className="drawer-header"><div><span>{selectedFeature ? "地図データ詳細" : "仕入れ候補・仕入れ分析"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div><button aria-label="詳細を閉じる" onClick={() => setDrawerOpen(false)} type="button"><X size={18} /></button></div>
+        <aside className="procurement-drawer" aria-label="選択エリア詳細">
+            <div className="drawer-header"><div><span>{selectedFeature ? "地図データ詳細" : "仕入れ候補・仕入れ分析"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div></div>
             {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={candidateAreas} enabledLayerIds={enabledLayerIds} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} adjustedOpportunity={adjustedOpportunity} /></>}
             <section className="drawer-section simulator-section">
               <div className="drawer-section-heading"><Calculator size={16} /><h3>仕入シミュレーション</h3></div>
@@ -394,8 +389,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
               <div className="sensitivity-table"><div className="sensitivity-head"><span>販売価格感度</span><span>想定利益</span></div>{[-10, -5, 0, 5].map((delta) => { const result = calculateProcurementCeiling({ ...simulator, expectedSalePriceManYen: simulator.expectedSalePriceManYen * (1 + delta / 100) }); return <div key={delta}><span>{delta === 0 ? "基準" : `${delta > 0 ? "+" : ""}${delta}%`}</span><b>{manYen(result.expectedProfitManYen)}</b></div>; })}</div>
             </section>
             <section className="drawer-section source-section"><div className="drawer-section-heading"><Database size={16} /><h3>情報ソース</h3></div><p>{primaryArea.area.source === "sample" ? "開発用サンプルデータ" : "外部データ"}</p><small>基準日：2026年 / 地域単位：{primaryArea.area.analysisUnit} / 取得値がない項目は「データなし」と表示します。</small></section>
-          </aside>
-        ) : null}
+        </aside>
       </div>
     </main>
   );
