@@ -9,6 +9,7 @@ import {
   ChevronDown,
   CircleHelp,
   Database,
+  ExternalLink,
   FileOutput,
   Layers,
   MapPinned,
@@ -27,6 +28,7 @@ import { manYen, opportunityLabel, opportunityTone, percent, score } from "@/lib
 import { OPEN_DATA_LAYERS } from "@/lib/market/openData";
 import { getProductCostProfile } from "@/lib/market/productCost";
 import { calculateLayerAdjustedOpportunityScore } from "@/lib/market/scoring";
+import type { LandListing } from "@/lib/market/listings";
 import type {
   AnalysisUnit,
   MarketReport,
@@ -63,6 +65,14 @@ type LayerControl = {
 };
 
 type LayerStatus = "待機" | "読込中" | "読込済" | "プレビュー" | "エラー" | "データなし";
+type ListingSearchStatus = "idle" | "loading" | "loaded" | "error";
+type ListingSearchState = {
+  areaId: string | null;
+  status: ListingSearchStatus;
+  listings: LandListing[];
+  message: string | null;
+  sourceMode: "preview" | "crawl" | "api" | null;
+};
 
 const ANALYSIS_LAYER_IDS = new Set([
   "demand-score",
@@ -181,6 +191,8 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   const [layerStatuses, setLayerStatuses] = useState<Record<string, LayerStatus>>({});
   const [selectedArea, setSelectedArea] = useState<RankedArea | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<MapFeatureSelection | null>(null);
+  const [listingSearch, setListingSearch] = useState<ListingSearchState>({ areaId: null, status: "idle", listings: [], message: null, sourceMode: null });
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [searchedAt, setSearchedAt] = useState("初期表示");
@@ -251,6 +263,8 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
     setQuery(form);
     setSelectedArea(null);
     setSelectedFeature(null);
+    setListingSearch({ areaId: null, status: "idle", listings: [], message: null, sourceMode: null });
+    setSelectedListingId(null);
     setSearchedAt(new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date()));
   }
 
@@ -261,6 +275,8 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   function handleAreaSelect(area: RankedArea) {
     setSelectedArea(area);
     setSelectedFeature(null);
+    setListingSearch({ areaId: null, status: "idle", listings: [], message: null, sourceMode: null });
+    setSelectedListingId(null);
     setSimulator((current) => ({
       ...current,
       expectedSalePriceManYen: area.area.averageSalePriceManYen
@@ -269,6 +285,42 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 
   function handleFeatureSelect(feature: MapFeatureSelection) {
     setSelectedFeature(feature);
+  }
+
+  async function handleListingSearch(area: RankedArea) {
+    setListingSearch({ areaId: area.area.id, status: "loading", listings: [], message: null, sourceMode: null });
+    setSelectedListingId(null);
+    const params = new URLSearchParams({
+      prefecture: area.area.prefecture,
+      municipality: area.area.municipality,
+      neighborhood: area.area.neighborhood,
+      productType: form.productType
+    });
+
+    try {
+      const response = await fetch(`/api/listings?${params.toString()}`, { cache: "no-store" });
+      const payload = await response.json() as { listings?: LandListing[]; message?: string; sourceMode?: ListingSearchState["sourceMode"]; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "売出情報の取得に失敗しました。");
+      setListingSearch({
+        areaId: area.area.id,
+        status: "loaded",
+        listings: payload.listings ?? [],
+        message: payload.message ?? null,
+        sourceMode: payload.sourceMode ?? "preview"
+      });
+    } catch (error) {
+      setListingSearch({
+        areaId: area.area.id,
+        status: "error",
+        listings: [],
+        message: error instanceof Error ? error.message : "売出情報の取得に失敗しました。",
+        sourceMode: null
+      });
+    }
+  }
+
+  function handleListingSelect(listing: LandListing) {
+    setSelectedListingId(listing.id);
   }
 
   function updateSimulator<K extends keyof ProcurementCeilingInput>(key: K, value: number) {
@@ -375,7 +427,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 
         <aside className="procurement-drawer" aria-label="選択エリア詳細">
             <div className="drawer-header"><div><span>{selectedFeature ? "地図データ詳細" : "仕入れ候補・仕入れ分析"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div></div>
-            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={candidateAreas} enabledLayerIds={enabledLayerIds} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} adjustedOpportunity={adjustedOpportunity} /></>}
+            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={candidateAreas} enabledLayerIds={enabledLayerIds} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} adjustedOpportunity={adjustedOpportunity} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearchListings={handleListingSearch} onSelectListing={handleListingSelect} /></>}
             <section className="drawer-section simulator-section">
               <div className="drawer-section-heading"><Calculator size={16} /><h3>仕入シミュレーション</h3></div>
               <div className="simulator-grid">
@@ -395,7 +447,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   );
 }
 
-function AreaDetail({ area, report, adjustedOpportunity }: { area: RankedArea; report: MarketReport; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore> }) {
+function AreaDetail({ area, report, adjustedOpportunity, listingSearch, selectedListingId, onSearchListings, onSelectListing }: { area: RankedArea; report: MarketReport; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore>; listingSearch: ListingSearchState; selectedListingId: string | null; onSearchListings: (area: RankedArea) => void; onSelectListing: (listing: LandListing) => void }) {
   const breakdown = area.scoreBreakdown.filter((item) => item.value !== null);
   return <div className="drawer-content">
     <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</span><strong>{score(adjustedOpportunity.score)}</strong></div><p>{adjustedOpportunity.recalculated ? "選択中の複数レイヤーを反映して仕入れ評点を再計算しています。" : area.reasons[3] ?? area.reasons[0]}</p>{adjustedOpportunity.recalculated ? <small className="drawer-note">反映：{adjustedOpportunity.activeLabels.join("・")}（基準評点 {score(adjustedOpportunity.baseScore)}）</small> : null}</section>
@@ -404,7 +456,36 @@ function AreaDetail({ area, report, adjustedOpportunity }: { area: RankedArea; r
     <Accordion title="相場・人口" icon={<MapPinned size={16} />} open><MetricList items={[["人口", `${area.area.population.toLocaleString("ja-JP")}人`], ["世帯数", `${area.area.households.toLocaleString("ja-JP")}世帯`], ["人口5年増減", percent(area.area.populationGrowthRate)], ["世帯増減", percent(area.area.householdGrowthRate)], ["平均世帯年収", manYen(area.area.averageIncomeManYen)], ["土地平均", `${manYen(area.area.averageLandPriceManYenPerTsubo)}/坪`], ["取引件数", `${area.area.transactionCount}件`]]} /></Accordion>
     <Accordion title="都市計画・ハザード" icon={<ShieldAlert size={16} />}><MetricList items={[["用途地域", "データなし"], ["洪水", "データなし"], ["土砂災害", "データなし"]]} /><small className="drawer-note">ハザードAPI接続後に地点単位で表示</small></Accordion>
     <Accordion title="仕入判断メモ" icon={<Target size={16} />}><p className="drawer-copy">{report.actions[0]}</p><p className="drawer-copy">{report.actions[1]}</p></Accordion>
+    <LandListingPanel area={area} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearch={() => onSearchListings(area)} onSelectListing={onSelectListing} />
   </div>;
+}
+
+function LandListingPanel({ area, listingSearch, selectedListingId, onSearch, onSelectListing }: { area: RankedArea; listingSearch: ListingSearchState; selectedListingId: string | null; onSearch: () => void; onSelectListing: (listing: LandListing) => void }) {
+  const isCurrentArea = listingSearch.areaId === area.area.id;
+  const status = isCurrentArea ? listingSearch.status : "idle";
+  const listings = isCurrentArea ? listingSearch.listings : [];
+
+  return <section className="drawer-section listing-section" aria-live="polite">
+    <div className="drawer-section-heading"><Search size={16} /><h3>土地売出情報</h3><small>{area.area.neighborhood}</small></div>
+    <button className="listing-search-button" disabled={status === "loading"} onClick={onSearch} type="button"><Search size={15} />{status === "loading" ? "売出情報を検索中" : "売出情報を検索する"}</button>
+    {status === "idle" ? <small className="listing-note">レインズ・HOME'S・SUUMO・at home・楽待・健美家の候補を検索します。</small> : null}
+    {status === "error" ? <p className="listing-error">{listingSearch.message}</p> : null}
+    {status === "loaded" ? <>
+      <div className="listing-results-meta"><strong>{listings.length}件の候補土地</strong><span>{listingSearch.sourceMode === "preview" ? "開発用プレビュー" : "外部取得データ"}</span></div>
+      {listingSearch.message ? <small className="listing-note">{listingSearch.message}</small> : null}
+      <div className="land-listing-list">
+        {listings.map((listing) => {
+          const selected = selectedListingId === listing.id;
+          return <article className={`land-listing-card${selected ? " selected" : ""}`} key={listing.id}>
+            <div className="land-listing-card-heading"><div><strong>{listing.title}</strong><small>{listing.sourceLabel} / {listing.dataMode === "preview" ? "プレビュー" : "取得済み"}</small></div><b>{manYen(listing.priceManYen)}</b></div>
+            <p>{listing.address}</p>
+            <dl className="land-listing-metrics"><div><dt>土地面積</dt><dd>{listing.landAreaTsubo}坪</dd></div><div><dt>坪単価</dt><dd>{manYen(listing.pricePerTsuboManYen)}/坪</dd></div><div><dt>駅徒歩</dt><dd>{listing.station} 徒歩{listing.walkMinutes}分</dd></div><div><dt>用途地域</dt><dd>{listing.zoning}</dd></div></dl>
+            <div className="land-listing-actions"><button className="listing-select-button" aria-pressed={selected} onClick={() => onSelectListing(listing)} type="button">{selected ? "候補選択中" : "候補に選択"}</button><a href={listing.dataMode === "preview" ? listing.listingUrl : listing.inquiryUrl} rel="noreferrer" target="_blank"><ExternalLink size={13} />{listing.dataMode === "preview" ? "掲載元サイトを開く" : "問い合わせ先へ"}</a></div>
+          </article>;
+        })}
+      </div>
+    </> : null}
+  </section>;
 }
 
 function SelectedAreaSummary({ area, adjustedOpportunity, selected }: { area: RankedArea; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore>; selected: boolean }) {
