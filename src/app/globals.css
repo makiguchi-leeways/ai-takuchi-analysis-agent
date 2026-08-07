@@ -2285,6 +2285,16 @@ select {
 .rating-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rating-main strong { color: var(--green); font-size: 31px; line-height: 1; }
 .rating-section p, .drawer-copy { margin: 9px 0 0; line-height: 1.6; }
+.procurement-analysis-details { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line); }
+.procurement-analysis-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.procurement-analysis-heading strong { font-size: 11px; }
+.procurement-analysis-heading small { color: var(--muted); font-size: 9px; }
+.procurement-analysis-list { display: grid; border-top: 1px solid var(--line); }
+.procurement-analysis-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px dotted var(--line); }
+.procurement-analysis-row strong, .procurement-analysis-row small { display: block; }
+.procurement-analysis-row strong { font-size: 11px; }
+.procurement-analysis-row small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.procurement-analysis-row b { color: var(--green); font-size: 13px; white-space: nowrap; }
 .drawer-accordion { border-bottom: 1px solid var(--line); }
 .drawer-accordion summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 0 16px; color: var(--ink); font-size: 12px; font-weight: 900; cursor: pointer; list-style: none; }
 .drawer-accordion summary::-webkit-details-marker { display: none; }

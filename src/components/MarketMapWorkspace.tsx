@@ -74,26 +74,16 @@ type ListingSearchState = {
   sourceMode: "preview" | "crawl" | "api" | null;
 };
 
-const ANALYSIS_LAYER_IDS = new Set([
+const PROCUREMENT_ANALYSIS_LAYER_IDS = [
   "demand-score",
   "supply-score",
   "supply-demand-gap",
   "procurement-opportunity",
   "candidate-top10"
-]);
+];
+const ANALYSIS_LAYER_IDS = new Set(PROCUREMENT_ANALYSIS_LAYER_IDS);
 
 const LAYER_CATEGORIES: LayerCategory[] = [
-  {
-    id: "procurement",
-    label: "仕入分析",
-    layers: [
-      { id: "demand-score", label: "需要スコア", color: "#12665d", source: "Market Scout分析" },
-      { id: "supply-score", label: "供給スコア", color: "#245f9f", source: "Gate API / Market Scout分析" },
-      { id: "supply-demand-gap", label: "需給ギャップ", color: "#a86b15", source: "Market Scout分析" },
-      { id: "procurement-opportunity", label: "仕入機会スコア", color: "#5b6c2f", source: "Market Scout分析" },
-      { id: "candidate-top10", label: "仕入候補 TOP10", color: "#a93a34", source: "Market Scout分析" }
-    ]
-  },
   {
     id: "land",
     label: "不動産価格",
@@ -162,10 +152,6 @@ const LAYER_CATEGORIES: LayerCategory[] = [
 ];
 
 const DEFAULT_ENABLED_LAYER_IDS = new Set([
-  "demand-score",
-  "supply-score",
-  "procurement-opportunity",
-  "candidate-top10",
   "population-density",
   "land-price",
   "transport"
@@ -208,12 +194,16 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
     if (!selectedArea || topTen.some((item) => item.area.id === selectedArea.area.id)) return topTen;
     return [selectedArea, ...topTen].slice(0, 10);
   }, [selectedArea, topTen]);
+  const scoreLayerIds = useMemo(
+    () => [...PROCUREMENT_ANALYSIS_LAYER_IDS, ...enabledLayerIds.filter((id) => !ANALYSIS_LAYER_IDS.has(id))],
+    [enabledLayerIds]
+  );
   const adjustedOpportunity = useMemo(
-    () => calculateLayerAdjustedOpportunityScore(primaryArea, enabledLayerIds),
-    [enabledLayerIds, primaryArea]
+    () => calculateLayerAdjustedOpportunityScore(primaryArea, scoreLayerIds),
+    [primaryArea, scoreLayerIds]
   );
   const openDataLayerIds = useMemo(
-    () => enabledLayerIds.filter((id) => !ANALYSIS_LAYER_IDS.has(id)).filter((id) => OPEN_DATA_LAYERS.some((layer) => layer.id === id)),
+    () => enabledLayerIds.filter((id) => OPEN_DATA_LAYERS.some((layer) => layer.id === id)),
     [enabledLayerIds]
   );
   const enabledCategories = useMemo(
@@ -427,7 +417,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 
         <aside className="procurement-drawer" aria-label="選択エリア詳細">
             <div className="drawer-header"><div><span>{selectedFeature ? "地図データ詳細" : "仕入れ候補・仕入れ分析"}</span><h2>{selectedFeature?.title ?? primaryArea.area.neighborhood}</h2><small>{primaryArea.area.municipality} / {primaryArea.area.analysisUnit}</small></div></div>
-            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={candidateAreas} enabledLayerIds={enabledLayerIds} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} adjustedOpportunity={adjustedOpportunity} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearchListings={handleListingSearch} onSelectListing={handleListingSelect} /></>}
+            {selectedFeature ? <FeatureDetail feature={selectedFeature} /> : <><CandidateOverview areas={candidateAreas} scoreLayerIds={scoreLayerIds} selectedArea={primaryArea} onAreaSelect={handleAreaSelect} /><AreaDetail area={primaryArea} report={report} adjustedOpportunity={adjustedOpportunity} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearchListings={handleListingSearch} onSelectListing={handleListingSelect} /></>}
             <section className="drawer-section simulator-section">
               <div className="drawer-section-heading"><Calculator size={16} /><h3>仕入シミュレーション</h3></div>
               <div className="simulator-grid">
@@ -450,7 +440,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 function AreaDetail({ area, report, adjustedOpportunity, listingSearch, selectedListingId, onSearchListings, onSelectListing }: { area: RankedArea; report: MarketReport; adjustedOpportunity: ReturnType<typeof calculateLayerAdjustedOpportunityScore>; listingSearch: ListingSearchState; selectedListingId: string | null; onSearchListings: (area: RankedArea) => void; onSelectListing: (listing: LandListing) => void }) {
   const breakdown = area.scoreBreakdown.filter((item) => item.value !== null);
   return <div className="drawer-content">
-    <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</span><strong>{score(adjustedOpportunity.score)}</strong></div><p>{adjustedOpportunity.recalculated ? "選択中の複数レイヤーを反映して仕入れ評点を再計算しています。" : area.reasons[3] ?? area.reasons[0]}</p>{adjustedOpportunity.recalculated ? <small className="drawer-note">反映：{adjustedOpportunity.activeLabels.join("・")}（基準評点 {score(adjustedOpportunity.baseScore)}）</small> : null}</section>
+    <section className="drawer-section rating-section"><div className="drawer-section-heading"><TrendingUp size={16} /><h3>仕入れ分析</h3></div><div className="rating-main"><span className={opportunityTone(adjustedOpportunity.score)}>{opportunityLabel(adjustedOpportunity.score)}</span><strong>{score(adjustedOpportunity.score)}</strong></div><p>{adjustedOpportunity.recalculated ? "仕入分析の5指標と選択中の外部レイヤーを反映して仕入れ評点を算出しています。" : area.reasons[3] ?? area.reasons[0]}</p><ProcurementAnalysisDetails area={area} />{adjustedOpportunity.recalculated ? <small className="drawer-note">評価項目：{adjustedOpportunity.activeLabels.join("・")}（基準評点 {score(adjustedOpportunity.baseScore)}）</small> : null}</section>
     <LandListingPanel area={area} listingSearch={listingSearch} selectedListingId={selectedListingId} onSearch={() => onSearchListings(area)} onSelectListing={onSelectListing} />
     <Accordion title="総合評価・スコア内訳" icon={<TrendingUp size={16} />} open><div className="breakdown-list">{breakdown.map((item) => <div className="breakdown-row" key={item.key}><span>{item.label}<small>{item.source}</small></span><b>{item.value === null ? "データなし" : score(item.value)}</b><i style={{ width: `${Math.max(5, Math.min(100, item.value ?? 0))}%` }} /></div>)}</div></Accordion>
     <Accordion title="需給" icon={<BarChart3 size={16} />} open><MetricList items={[["需要スコア", score(area.demandScore)], ["供給スコア", score(area.supplyScore)], ["需給ギャップ", `${area.demandSupplyGap > 0 ? "+" : ""}${score(area.demandSupplyGap)}`], ["流動性", score(area.liquidityScore)]]} /></Accordion>
@@ -496,11 +486,23 @@ function SelectedAreaSummary({ area, adjustedOpportunity, selected }: { area: Ra
   </section>;
 }
 
-function CandidateOverview({ areas, enabledLayerIds, selectedArea, onAreaSelect }: { areas: RankedArea[]; enabledLayerIds: string[]; selectedArea: RankedArea; onAreaSelect: (area: RankedArea) => void }) {
+function ProcurementAnalysisDetails({ area }: { area: RankedArea }) {
+  const metrics: Array<[string, string, string]> = [
+    ["需要スコア", score(area.demandScore), "人口・世帯・子育て世帯・所得"],
+    ["供給スコア", score(area.supplyScore), "新築供給・土地売出・競合供給"],
+    ["需給ギャップ", `${area.demandSupplyGap > 0 ? "+" : ""}${score(area.demandSupplyGap)}`, "需要スコア − 供給スコア"],
+    ["仕入機会スコア", score(area.opportunityScore), "流動性・需給・収益性・リスク"],
+    ["仕入候補 TOP10", `${area.rank}位`, "選択市区町村内の候補順位"]
+  ];
+
+  return <div className="procurement-analysis-details"><div className="procurement-analysis-heading"><strong>評価指標の内訳</strong><small>地図レイヤーではありません</small></div><div className="procurement-analysis-list">{metrics.map(([label, value, source]) => <div className="procurement-analysis-row" key={label}><div><strong>{label}</strong><small>{source}</small></div><b>{value}</b></div>)}</div></div>;
+}
+
+function CandidateOverview({ areas, scoreLayerIds, selectedArea, onAreaSelect }: { areas: RankedArea[]; scoreLayerIds: string[]; selectedArea: RankedArea; onAreaSelect: (area: RankedArea) => void }) {
   return <section className="drawer-section candidate-overview">
     <div className="drawer-section-heading"><Target size={16} /><h3>仕入れ候補</h3><small>TOP10 / 地図上の候補</small></div>
     <div className="drawer-candidate-list">
-      {areas.map((item) => { const adjusted = calculateLayerAdjustedOpportunityScore(item, enabledLayerIds); return <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{item.rank}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(adjusted.score)}>{score(adjusted.score)}</b></button>; })}
+      {areas.map((item) => { const adjusted = calculateLayerAdjustedOpportunityScore(item, scoreLayerIds); return <button className={selectedArea.area.id === item.area.id ? "selected" : ""} key={item.area.id} onClick={() => onAreaSelect(item)} type="button"><span className="candidate-rank">{item.rank}</span><span className="candidate-name"><strong>{item.area.neighborhood}</strong><small>{item.area.municipality}</small></span><b className={opportunityTone(adjusted.score)}>{score(adjusted.score)}</b></button>; })}
     </div>
   </section>;
 }
