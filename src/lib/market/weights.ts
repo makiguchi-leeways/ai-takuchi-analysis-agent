@@ -14,5 +14,15 @@ export const scoreWeights: ScoreWeights = {
     supplyShortage: 0.25,
     purchasingPower: 0.15,
     competitorPenalty: 0.18
+  },
+  opportunity: {
+    demand: 0.22,
+    supplyDemandGap: 0.22,
+    liquidity: 0.16,
+    demographic: 0.14,
+    accessibility: 0.08,
+    profitability: 0.1,
+    hazardRisk: 0.04,
+    landPriceRisk: 0.04
   }
 };

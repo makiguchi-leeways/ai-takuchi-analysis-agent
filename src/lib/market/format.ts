@@ -39,3 +39,19 @@ export function quadrantTone(quadrant: Quadrant) {
     "red-ocean": "tone-red"
   }[quadrant];
 }
+
+export function opportunityLabel(value: number) {
+  if (value >= 80) return "非常に有望";
+  if (value >= 65) return "有望";
+  if (value >= 45) return "中立";
+  if (value >= 30) return "慎重";
+  return "非推奨";
+}
+
+export function opportunityTone(value: number) {
+  if (value >= 80) return "opportunity-excellent";
+  if (value >= 65) return "opportunity-good";
+  if (value >= 45) return "opportunity-neutral";
+  if (value >= 30) return "opportunity-caution";
+  return "opportunity-stop";
+}

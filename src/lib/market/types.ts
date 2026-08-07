@@ -56,6 +56,26 @@ export interface ScoreWeights {
     purchasingPower: number;
     competitorPenalty: number;
   };
+  opportunity: {
+    demand: number;
+    supplyDemandGap: number;
+    liquidity: number;
+    demographic: number;
+    accessibility: number;
+    profitability: number;
+    hazardRisk: number;
+    landPriceRisk: number;
+  };
+}
+
+export interface ScoreBreakdownItem {
+  key: string;
+  label: string;
+  value: number | null;
+  weight: number;
+  contribution: number | null;
+  direction: "positive" | "negative";
+  source: string;
 }
 
 export interface ScoreResult {
@@ -68,6 +88,9 @@ export interface ScoreResult {
   competitorOversupplyScore: number;
   blueOceanScore: number;
   redOceanScore: number;
+  demandSupplyGap: number;
+  opportunityScore: number;
+  scoreBreakdown: ScoreBreakdownItem[];
   dataConfidenceScore: number;
   quadrant: Quadrant;
   reasons: string[];
@@ -127,6 +150,32 @@ export interface LandAcquisitionLimitResult {
   totalNonLandCostManYen: number;
   landAcquisitionLimitManYen: number;
   recommendedSalePriceRangeManYen: [number, number];
+}
+
+export interface ProcurementCeilingInput {
+  expectedSalePriceManYen: number;
+  buildingCostManYen: number;
+  landDevelopmentCostManYen: number;
+  exteriorCostManYen: number;
+  demolitionCostManYen: number;
+  brokerageCostManYen: number;
+  financeCostManYen: number;
+  salesAdminCostManYen: number;
+  taxesRegistrationCostManYen: number;
+  targetProfitManYen: number;
+  targetGrossMarginRate: number;
+  riskAdjustmentManYen: number;
+  landAreaTsubo: number;
+}
+
+export interface ProcurementCeilingResult {
+  totalCostBeforeLandManYen: number;
+  expectedProfitManYen: number;
+  grossMarginRate: number;
+  landAcquisitionLimitManYen: number;
+  landPriceLimitManYenPerTsubo: number;
+  safetyMarginManYen: number;
+  formula: string[];
 }
 
 export interface RentVsBuyInput {

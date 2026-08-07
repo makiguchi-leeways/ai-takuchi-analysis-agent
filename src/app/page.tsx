@@ -1,7 +1,8 @@
 import { MarketMapWorkspace } from "@/components/MarketMapWorkspace";
 import { analyzeMarket } from "@/lib/market/report";
 
-export default function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ municipality?: string; address?: string }> }) {
   const report = analyzeMarket();
-  return <MarketMapWorkspace report={report} />;
+  const params = await searchParams;
+  return <MarketMapWorkspace report={report} initialSearch={params} />;
 }

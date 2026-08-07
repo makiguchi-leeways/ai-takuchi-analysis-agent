@@ -5,7 +5,7 @@ import { getOpenDataLayer, type OpenDataLayerDefinition } from "@/lib/market/ope
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const DEFAULT_GATE_API_BASE_URL = "https://staging-api.gate.estate";
+const DEFAULT_GATE_API_BASE_URL = "https://enterprise-staging-api.gate.estate";
 
 type Bounds = [number, number, number, number];
 type UpstreamDiagnostics = {
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "bounds must be south,west,north,east." }, { status: 400 });
   }
 
-  const apiKey = process.env.GATE_API_KEY;
+  const apiKey = resolveGateApiKey();
   if (!apiKey) {
     return NextResponse.json(buildFallbackGeoJson(layer, bounds, "missing-api-key"));
   }
@@ -90,6 +90,15 @@ function normalizeGateApiBaseUrl(value: string | undefined) {
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) raw = `https://${raw}`;
   const originOnly = raw.replace(/\/ms-map-layer\/.*$/, "");
   return originOnly.endsWith("/") ? originOnly : `${originOnly}/`;
+}
+
+function resolveGateApiKey() {
+  // Gate documentation calls the header X-API-KEY. Keep GATE_API_KEY as the
+  // app-facing name, while accepting X_API_KEY for Vercel projects configured
+  // directly from the provider's example environment variable.
+  return [process.env.GATE_API_KEY, process.env.X_API_KEY]
+    .map((value) => (value || "").trim().replace(/^X[_-]API[_-]KEY\s*=\s*/i, "").replace(/^['"]|['"]$/g, "").trim())
+    .find(Boolean) ?? "";
 }
 
 function requestGateApi(upstreamUrl: URL, apiKey: string) {

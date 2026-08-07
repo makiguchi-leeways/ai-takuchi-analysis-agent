@@ -1,4 +1,4 @@
-import type { AreaMetric, Quadrant, RankedArea, ScoreResult, ScoreWeights } from "./types";
+import type { AreaMetric, Quadrant, RankedArea, ScoreBreakdownItem, ScoreResult, ScoreWeights } from "./types";
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
@@ -58,6 +58,106 @@ export function scoreArea(area: AreaMetric, weights: ScoreWeights): ScoreResult 
     [normalizeScore(area.averageRentManYen, 10, 24), 0.15]
   ]);
   const competitorOversupplyScore = normalizeScore(area.competitorSupplyCount + area.newDetachedSupplyCount, 0, 80);
+  const demographicScore = weighted([
+    [normalizeScore(area.populationGrowthRate, -0.03, 0.05), 0.35],
+    [normalizeScore(area.householdGrowthRate, -0.02, 0.06), 0.35],
+    [normalizeScore(area.childHouseholdRate, 0.08, 0.32), 0.3]
+  ]);
+  const demandSupplyGap = round(demandScore - supplyScore);
+  const demandSupplyGapContributionScore = clamp(50 + demandSupplyGap / 2);
+  const landPriceRiskScore = normalizeScore(area.averageLandPriceManYenPerTsubo, 80, 180);
+  const opportunityBreakdown: ScoreBreakdownItem[] = [
+    {
+      key: "demand",
+      label: "需要スコア",
+      value: demandScore,
+      weight: weights.opportunity.demand,
+      contribution: demandScore * weights.opportunity.demand,
+      direction: "positive",
+      source: "人口・世帯・子育て世帯・所得"
+    },
+    {
+      key: "supplyDemandGap",
+      label: "需給ギャップ",
+      value: demandSupplyGap,
+      weight: weights.opportunity.supplyDemandGap,
+      contribution: demandSupplyGapContributionScore * weights.opportunity.supplyDemandGap,
+      direction: "positive",
+      source: "需要スコア − 供給スコア"
+    },
+    {
+      key: "liquidity",
+      label: "流動性スコア",
+      value: liquidityScore,
+      weight: weights.opportunity.liquidity,
+      contribution: liquidityScore * weights.opportunity.liquidity,
+      direction: "positive",
+      source: "人口移動・成約件数・成約期間・空き家率"
+    },
+    {
+      key: "demographic",
+      label: "人口・世帯スコア",
+      value: demographicScore,
+      weight: weights.opportunity.demographic,
+      contribution: demographicScore * weights.opportunity.demographic,
+      direction: "positive",
+      source: "人口増減・世帯増減・子育て世帯"
+    },
+    {
+      key: "accessibility",
+      label: "交通・生活利便性",
+      value: null,
+      weight: weights.opportunity.accessibility,
+      contribution: null,
+      direction: "positive",
+      source: "駅・学校・施設API未接続"
+    },
+    {
+      key: "profitability",
+      label: "収益性・購買力",
+      value: purchasingPowerScore,
+      weight: weights.opportunity.profitability,
+      contribution: purchasingPowerScore * weights.opportunity.profitability,
+      direction: "positive",
+      source: "世帯年収・販売価格・賃料"
+    },
+    {
+      key: "hazardRisk",
+      label: "ハザードリスク",
+      value: null,
+      weight: weights.opportunity.hazardRisk,
+      contribution: null,
+      direction: "negative",
+      source: "ハザードAPI未接続"
+    },
+    {
+      key: "landPriceRisk",
+      label: "土地価格リスク",
+      value: landPriceRiskScore,
+      weight: weights.opportunity.landPriceRisk,
+      contribution: landPriceRiskScore * weights.opportunity.landPriceRisk,
+      direction: "negative",
+      source: "平均土地価格"
+    }
+  ];
+  const availablePositiveWeight = opportunityBreakdown
+    .filter((item) => item.direction === "positive" && item.value !== null)
+    .reduce((sum, item) => sum + item.weight, 0);
+  const availableNegativeWeight = opportunityBreakdown
+    .filter((item) => item.direction === "negative" && item.value !== null)
+    .reduce((sum, item) => sum + item.weight, 0);
+  const positiveScore = opportunityBreakdown
+    .filter((item) => item.direction === "positive" && item.value !== null)
+    .reduce((sum, item) => sum + (item.contribution ?? 0), 0);
+  const negativeScore = opportunityBreakdown
+    .filter((item) => item.direction === "negative" && item.value !== null)
+    .reduce((sum, item) => sum + (item.contribution ?? 0), 0);
+  const positiveAverage = positiveScore / Math.max(availablePositiveWeight, 0.01);
+  const negativeAverage = negativeScore / Math.max(availableNegativeWeight, 0.01);
+  const availableWeight = availablePositiveWeight + availableNegativeWeight;
+  const opportunityScore = round(
+    clamp(positiveAverage - negativeAverage * (availableNegativeWeight / Math.max(availableWeight, 0.01)))
+  );
   const blueOceanScore = round(
     clamp(
       demandScore * weights.blueOcean.demand +
@@ -87,6 +187,9 @@ export function scoreArea(area: AreaMetric, weights: ScoreWeights): ScoreResult 
     competitorOversupplyScore,
     blueOceanScore,
     redOceanScore,
+    demandSupplyGap,
+    opportunityScore,
+    scoreBreakdown: opportunityBreakdown,
     dataConfidenceScore: area.dataConfidenceScore,
     quadrant,
     reasons: buildReasons(area, { liquidityScore, demandScore, supplyShortageScore, purchasingPowerScore, quadrant })

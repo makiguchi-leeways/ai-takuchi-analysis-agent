@@ -17,6 +17,7 @@ const MIN_ZOOM = 9;
 const MAX_ZOOM = 15;
 const DEFAULT_MAP_SIZE = { width: 760, height: 420 };
 const MAX_RENDERED_FEATURES_PER_LAYER = 700;
+const LAYER_CACHE = new Map<string, GeoJsonFeatureCollection>();
 
 type LatLng = {
   lat: number;
@@ -44,7 +45,7 @@ type GeoJsonFeatureCollection = {
   type: "FeatureCollection";
   features: GeoJsonFeature[];
   metadata?: {
-    source?: "gate-api" | "sample";
+    source?: "gate-api" | "sample" | "openstreetmap";
     reason?: string;
     upstream?: {
       status?: number;
@@ -89,6 +90,23 @@ type FeatureInfoState = {
   pinned: boolean;
 };
 
+export interface MapFeatureSelection {
+  layer: OpenDataLayerDefinition;
+  title: string;
+  rows: FeatureInfoRow[];
+  properties: Record<string, unknown>;
+  source: "gate-api" | "sample" | "openstreetmap" | "unknown";
+}
+
+interface OpenDataMarketMapProps {
+  areas: RankedArea[];
+  enabledLayerIds?: string[];
+  onEnabledLayerIdsChange?: (layerIds: string[]) => void;
+  onFeatureSelect?: (selection: MapFeatureSelection) => void;
+  onAreaSelect?: (area: RankedArea) => void;
+  onLayerStatusChange?: (statuses: Record<string, "待機" | "読込中" | "読込済" | "エラー" | "データなし">) => void;
+}
+
 type FeatureInteractionHandlers = {
   onPointerDown: (event: ReactPointerEvent<SVGElement>) => void;
   onPointerEnter: (event: ReactPointerEvent<SVGElement>) => void;
@@ -97,12 +115,19 @@ type FeatureInteractionHandlers = {
   onPointerUp: (event: ReactPointerEvent<SVGElement>) => void;
 };
 
-export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
+export function OpenDataMarketMap({
+  areas,
+  enabledLayerIds: controlledLayerIds,
+  onEnabledLayerIdsChange,
+  onFeatureSelect,
+  onAreaSelect,
+  onLayerStatusChange
+}: OpenDataMarketMapProps) {
   const initialView = useMemo(() => resolveInitialView(areas), [areas]);
   const [center, setCenter] = useState(initialView.center);
   const [zoom, setZoom] = useState(initialView.zoom);
   const [size, setSize] = useState(DEFAULT_MAP_SIZE);
-  const [enabledLayerIds, setEnabledLayerIds] = useState<string[]>(DEFAULT_OPEN_DATA_LAYER_IDS);
+  const [internalLayerIds, setInternalLayerIds] = useState<string[]>(DEFAULT_OPEN_DATA_LAYER_IDS);
   const [collections, setCollections] = useState<Record<string, GeoJsonFeatureCollection>>({});
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -114,9 +139,11 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
   const view = useMemo<MapView>(() => ({ center, zoom }), [center, zoom]);
   const tiles = useMemo(() => getVisibleTiles(view, size), [view, size]);
   const boundsParam = useMemo(() => formatBounds(getViewportBounds(view, size)), [view, size]);
+  const enabledLayerIds = controlledLayerIds ?? internalLayerIds;
   const enabledLayers = OPEN_DATA_LAYERS.filter((layer) => enabledLayerIds.includes(layer.id));
   const fallbackLayers = enabledLayers.filter((layer) => collections[layer.id]?.metadata?.source === "sample");
   const missingApiKeyActive = fallbackLayers.some((layer) => collections[layer.id]?.metadata?.reason === "missing-api-key");
+  const transportFallbackActive = fallbackLayers.some((layer) => layer.id === "transport");
 
   useEffect(() => {
     setCenter(initialView.center);
@@ -143,32 +170,50 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
     if (enabledLayerIds.length === 0) {
       setErrorMessage(null);
       setLoading(false);
+      onLayerStatusChange?.({});
       return;
     }
 
     let canceled = false;
+    const controller = new AbortController();
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    if (refreshToken > 0) {
+      enabledLayerIds.forEach((layerId) => LAYER_CACHE.delete(`${layerId}:${boundsParam}`));
+    }
     setLoading(true);
     setErrorMessage(null);
+    onLayerStatusChange?.(Object.fromEntries(enabledLayerIds.map((layerId) => [layerId, "読込中"])));
 
-    Promise.all(
-      enabledLayerIds.map(async (layerId) => {
-        const params = new URLSearchParams({ layer: layerId, bounds: boundsParam });
-        try {
-          const response = await fetch(`/api/open-data/geojson?${params.toString()}`, { cache: "no-store" });
-          const payload = await response.json();
-          if (!response.ok) {
-            throw new Error(payload.error ?? `${layerId} could not be loaded.`);
+    debounceTimer = setTimeout(() => {
+      Promise.all(
+        enabledLayerIds.map(async (layerId) => {
+          const cacheKey = `${layerId}:${boundsParam}`;
+          const cached = LAYER_CACHE.get(cacheKey);
+          if (cached) return { layerId, payload: cached };
+          const params = new URLSearchParams({ layer: layerId, bounds: boundsParam });
+          try {
+            const endpoint = layerId === "transport" ? `/api/map/transport?${params.toString()}` : `/api/open-data/geojson?${params.toString()}`;
+            const response = await fetch(endpoint, {
+              cache: "no-store",
+              signal: controller.signal
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              throw new Error(payload.error ?? `${layerId} could not be loaded.`);
+            }
+            const collection = payload as GeoJsonFeatureCollection;
+            LAYER_CACHE.set(cacheKey, collection);
+            return { layerId, payload: collection };
+          } catch (error) {
+            if (controller.signal.aborted) throw error;
+            return {
+              layerId,
+              error: error instanceof Error ? error.message : "取得に失敗しました。"
+            };
           }
-          return { layerId, payload: payload as GeoJsonFeatureCollection };
-        } catch (error) {
-          return {
-            layerId,
-            error: error instanceof Error ? error.message : "取得に失敗しました。"
-          };
-        }
-      })
-    )
-      .then((results) => {
+        })
+      )
+        .then((results) => {
         if (canceled) return;
         const succeeded = results.filter((result): result is { layerId: string; payload: GeoJsonFeatureCollection } => "payload" in result);
         const failed = results.filter((result): result is { layerId: string; error: string } => "error" in result);
@@ -178,29 +223,46 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
           ...Object.fromEntries(succeeded.map((result) => [result.layerId, result.payload]))
         }));
 
+        onLayerStatusChange?.(Object.fromEntries(
+          results.map((result) => {
+            if ("error" in result) return [result.layerId, "エラー"];
+            if (result.payload.features.length === 0) return [result.layerId, "データなし"];
+            if (result.payload.metadata?.source === "sample" && result.payload.metadata.reason !== "missing-api-key") {
+              return [result.layerId, "エラー"];
+            }
+            if (result.payload.metadata?.source === "sample") return [result.layerId, "データなし"];
+            return [result.layerId, "読込済"];
+          })
+        ));
+
         setErrorMessage(
           failed.length > 0
             ? `取得できないレイヤー: ${failed.map((result) => getOpenDataLayerLabel(result.layerId)).join("、")}`
             : null
         );
-      })
-      .catch((error) => {
-        if (canceled) return;
-        setErrorMessage(error instanceof Error ? error.message : "オープンデータの取得に失敗しました。");
-      })
-      .finally(() => {
-        if (!canceled) setLoading(false);
-      });
+        })
+        .catch((error) => {
+          if (canceled || controller.signal.aborted) return;
+          setErrorMessage(error instanceof Error ? error.message : "オープンデータの取得に失敗しました。");
+        })
+        .finally(() => {
+          if (!canceled) setLoading(false);
+        });
+    }, 180);
 
     return () => {
       canceled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      controller.abort();
     };
   }, [boundsParam, enabledLayerIds, refreshToken]);
 
   function toggleLayer(layerId: string) {
-    setEnabledLayerIds((current) =>
-      current.includes(layerId) ? current.filter((id) => id !== layerId) : [...current, layerId]
-    );
+    const nextLayerIds = enabledLayerIds.includes(layerId)
+      ? enabledLayerIds.filter((id) => id !== layerId)
+      : [...enabledLayerIds, layerId];
+    if (controlledLayerIds === undefined) setInternalLayerIds(nextLayerIds);
+    onEnabledLayerIdsChange?.(nextLayerIds);
   }
 
   function recenter() {
@@ -238,6 +300,15 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
     event.stopPropagation();
     const point = tooltipPosition(event);
     const info = buildFeatureInfo(feature, layer);
+    if (pinned) {
+      onFeatureSelect?.({
+        layer,
+        title: info.title,
+        rows: info.rows,
+        properties: feature.properties ?? {},
+        source: collections[layer.id]?.metadata?.source ?? "unknown"
+      });
+    }
     setFeatureInfo({
       ...info,
       ...point,
@@ -288,23 +359,25 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
             <Layers size={16} />
             レイヤー
           </span>
-          {OPEN_DATA_LAYERS.map((layer) => {
-            const active = enabledLayerIds.includes(layer.id);
-            return (
-              <button
-                aria-pressed={active}
-                className={`layer-chip${active ? " active" : ""}`}
-                key={layer.id}
-                onClick={() => toggleLayer(layer.id)}
-                style={{ "--layer-color": layer.color } as CSSProperties}
-                title={`${layer.label}を${active ? "非表示" : "表示"}`}
-                type="button"
-              >
-                <span className="layer-swatch" />
-                {layer.label}
-              </button>
-            );
-          })}
+          {controlledLayerIds === undefined
+            ? OPEN_DATA_LAYERS.map((layer) => {
+                const active = enabledLayerIds.includes(layer.id);
+                return (
+                  <button
+                    aria-pressed={active}
+                    className={`layer-chip${active ? " active" : ""}`}
+                    key={layer.id}
+                    onClick={() => toggleLayer(layer.id)}
+                    style={{ "--layer-color": layer.color } as CSSProperties}
+                    title={`${layer.label}を${active ? "非表示" : "表示"}`}
+                    type="button"
+                  >
+                    <span className="layer-swatch" />
+                    {layer.label}
+                  </button>
+                );
+              })
+            : <span className="map-control-hint">左サイドバーで表示レイヤーを選択</span>}
         </div>
         <div className="map-tool-buttons">
           <button aria-label="地図を初期位置へ戻す" onClick={recenter} title="初期位置" type="button">
@@ -383,22 +456,40 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
             if (point.x < -40 || point.y < -40 || point.x > size.width + 40 || point.y > size.height + 40) return null;
 
             return (
-              <Link
-                className={`geo-map-pin ${quadrantTone(item.quadrant)}`}
-                href={`/areas/${item.area.id}`}
-                key={item.area.id}
-                onPointerDown={(event) => event.stopPropagation()}
-                style={{ left: point.x, top: point.y }}
-                title={`${item.area.municipality} ${item.area.neighborhood}: 総合${score(item.overallScore)} / ${quadrantLabel(item.quadrant)}`}
-              >
-                {item.rank}
-              </Link>
+              onAreaSelect ? (
+                <button
+                  aria-label={`${item.area.neighborhood}の詳細を開く`}
+                  className={`geo-map-pin ${quadrantTone(item.quadrant)}`}
+                  key={item.area.id}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAreaSelect(item);
+                  }}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  style={{ left: point.x, top: point.y }}
+                  title={`${item.area.municipality} ${item.area.neighborhood}: 総合${score(item.overallScore)} / ${quadrantLabel(item.quadrant)}`}
+                  type="button"
+                >
+                  {item.rank}
+                </button>
+              ) : (
+                <Link
+                  className={`geo-map-pin ${quadrantTone(item.quadrant)}`}
+                  href={`/areas/${item.area.id}`}
+                  key={item.area.id}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  style={{ left: point.x, top: point.y }}
+                  title={`${item.area.municipality} ${item.area.neighborhood}: 総合${score(item.overallScore)} / ${quadrantLabel(item.quadrant)}`}
+                >
+                  {item.rank}
+                </Link>
+              )
             );
           })}
         </div>
 
         <div className="map-attribution">
-          © OpenStreetMap contributors © CARTO
+          © OpenStreetMap contributors
         </div>
       </div>
 
@@ -407,8 +498,10 @@ export function OpenDataMarketMap({ areas }: { areas: RankedArea[] }) {
         {fallbackLayers.length > 0 ? (
           <span className="map-warning">
             {missingApiKeyActive
-              ? "Gate APIキー未設定のためプレビューGeoJSONを表示"
-              : `Gate API未取得: ${fallbackLayers.map((layer) => layer.label).join("、")}（プレビュー表示）`}
+              ? "Gate API未接続のためプレビューGeoJSONを表示。Vercelの環境変数追加後に再デプロイしてください"
+              : transportFallbackActive
+                ? "路線・駅データを取得できないため、プレビュー表示中です"
+                : `Gate API未取得: ${fallbackLayers.map((layer) => layer.label).join("、")}（プレビュー表示）`}
           </span>
         ) : null}
         {errorMessage ? <span className="map-error">{errorMessage}</span> : null}
@@ -454,7 +547,7 @@ function getVisibleTiles(view: MapView, size: MapSize): Tile[] {
       const wrappedX = ((x % scale) + scale) % scale;
       tiles.push({
         key: `${view.zoom}-${x}-${y}`,
-        src: `https://a.basemaps.cartocdn.com/light_all/${view.zoom}/${wrappedX}/${y}.png`,
+        src: `https://tile.openstreetmap.org/${view.zoom}/${wrappedX}/${y}.png`,
         left: x * TILE_SIZE - (centerWorld.x - size.width / 2),
         top: y * TILE_SIZE - (centerWorld.y - size.height / 2)
       });
@@ -526,6 +619,10 @@ function renderFeature(
   };
   const title = formatFeatureTitle(feature, layer);
 
+  if (layer.id === "transport") {
+    return renderTransportFeature(feature, key, view, size, handlers, title);
+  }
+
   if (feature.geometry.type === "Polygon") {
     const path = polygonPath(feature.geometry.coordinates, view, size);
     if (!path) return null;
@@ -572,6 +669,53 @@ function renderFeature(
       <circle className="geojson-feature-point" cx={point.x} cy={point.y} key={key} r={5} style={commonStyle} {...handlers}>
         <title>{title}</title>
       </circle>
+    );
+  }
+
+  return null;
+}
+
+function renderTransportFeature(
+  feature: GeoJsonFeature,
+  key: string,
+  view: MapView,
+  size: MapSize,
+  handlers: FeatureInteractionHandlers,
+  title: string
+) {
+  if (!feature.geometry) return null;
+  const properties = feature.properties ?? {};
+  const railway = firstString(properties, ["railway", "type"]);
+
+  if (feature.geometry.type === "LineString" || feature.geometry.type === "MultiLineString") {
+    const path = feature.geometry.type === "LineString"
+      ? linePath(feature.geometry.coordinates, view, size)
+      : Array.isArray(feature.geometry.coordinates)
+        ? feature.geometry.coordinates.map((line) => linePath(line, view, size)).filter(Boolean).join(" ")
+        : "";
+    if (!path) return null;
+    return (
+      <path
+        className="geojson-transport-line"
+        d={path}
+        fill="none"
+        key={key}
+        {...handlers}
+      >
+        <title>{title}</title>
+      </path>
+    );
+  }
+
+  if (feature.geometry.type === "Point" && isPosition(feature.geometry.coordinates)) {
+    const point = projectLatLng({ lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] }, view, size);
+    const stationName = firstString(properties, ["name", "Name"]);
+    return (
+      <g className="geojson-transport-station" key={key} {...handlers}>
+        <circle cx={point.x} cy={point.y} r={railway === "subway_entrance" ? 4 : 6} />
+        {stationName ? <text className="transport-station-label" x={point.x + 9} y={point.y - 8}>{stationName}</text> : null}
+        <title>{title}</title>
+      </g>
     );
   }
 

@@ -1,6 +1,6 @@
-# ハウスメーカー向け市場分析レポート MVP
+# Market Scout
 
-全国のハウスメーカー、戸建ビルダー、住宅事業者が「攻めるべき市区町村」と重点仕入れエリアを判断するための市場分析レポートWebアプリです。
+工務店が次に仕入れる土地を決めるためのAI宅地仕入・競合分析プラットフォームです。中心画面は「左レイヤー操作 | 地図 | 右詳細ドロワー」の仕入分析ワークスペースです。
 
 ## 想定ユーザー
 
@@ -14,17 +14,15 @@
 
 ## 主な機能
 
+- 仕入分析: 市区町村・町丁目の需要、供給、需給ギャップ、仕入機会スコア、候補TOP10
+- 地図レイヤー: Gate API GeoJSON、人口、地価、世帯年収、学区、用途地域、鉄道路線・駅の操作枠
+- Feature hover / click: 実データ属性、出典、基準年、地域単位の表示
+- 右詳細ドロワー: スコア内訳、需給、相場、人口、ハザード状態、仕入シミュレーション
+- 仕入シミュレーション: 土地仕入上限、坪単価上限、粗利、安全余裕、販売価格感度
+- 競合分析: 自社KPIとTOP10平均、競合財務・重点地域、ニュースの接続枠
+- 入札情報: 自治体案件の検索、一覧、詳細、仕入分析への遷移枠
+- ブラウザ印刷によるPDF出力
 - 指定フォルダ内のデータ棚卸しと `src/data/data_catalog.json` 生成
-- 横浜市青葉区周辺のサンプル分析データ
-- 市区町村ランキング、町丁目ランキング
-- 流動性 × 需給バランスの4象限チャート
-- 地図タイル上の市場スコアピン表示
-- Gate APIのGeoJSONオープンデータ重ね合わせ
-- ブルーオーシャンTOP3
-- 借入可能額、土地仕入れ上限価格、賃貸 vs 分譲比較
-- 詳細レポート、エリア詳細、Appendixでの根拠表示
-- ブラウザ印刷用CSS、CSV/Excel互換エクスポート
-- API Routesによる分析・電卓API
 
 ## 技術スタック
 
@@ -47,7 +45,7 @@ npm install
 npm run dev
 ```
 
-起動後、`http://127.0.0.1:3000` を開きます。
+起動後、`http://127.0.0.1:3000` を開きます。主な画面は `/`（仕入分析）、`/competition`（競合分析）、`/bids`（入札情報）です。
 
 ## GitHub / Vercel 公開
 
@@ -62,10 +60,17 @@ VercelのProject Settingsでは、必要に応じて以下の環境変数を設�
 
 ```bash
 GATE_API_KEY=...
-GATE_API_BASE_URL=https://staging-api.gate.estate
+# Optional compatibility alias for the provider's environment-variable name.
+X_API_KEY=...
+GATE_API_BASE_URL=https://enterprise-staging-api.gate.estate
+REAL_ESTATE_LIBRARY_API_KEY=...
+ESTAT_API_KEY=...
+RESAS_API_KEY=...
+GOOGLE_MAPS_API_KEY=...
 ```
 
 `GATE_API_KEY` を設定しない場合も、プレビューGeoJSONで地図レイヤーの表示確認はできます。
+通常は `GATE_API_KEY` を使用し、`X_API_KEY` は既存のVercel設定を移行する場合だけ使用してください。両方のValueにキー名や `=` は含めず、キー本体だけを設定します。
 
 ## データフォルダの指定方法
 
@@ -84,14 +89,16 @@ DATA_CATALOG_ROOTS="/path/to/open-data:/path/to/rent-appraisal-tool" node script
 
 ```bash
 GATE_API_KEY=...
-GATE_API_BASE_URL=https://staging-api.gate.estate
+# Optional compatibility alias for the provider's environment-variable name.
+X_API_KEY=...
+GATE_API_BASE_URL=https://enterprise-staging-api.gate.estate
 ```
 
 `GATE_API_KEY` が未設定の場合、`/api/open-data/geojson` は画面検証用のプレビューGeoJSONを返します。指定フォルダ内の環境変数ファイルや資格情報らしいファイルは、内容を読まずメタデータのみを棚卸ししています。
 
 ## サンプルデータの使い方
 
-現時点の分析結果は `src/lib/market/sampleData.ts` のサンプルデータを使用します。対象例は神奈川県横浜市青葉区、美しが丘1丁目、あざみ野2丁目、荏田北、たまプラーザ周辺です。
+現時点の市区町村・町丁目分析は `src/lib/market/sampleData.ts` のサンプルデータを使用します。UIには「開発用サンプルデータ」と表示されます。Gate APIキーを設定すると、地図レイヤーはサーバー側BFF経由でGate APIへ接続します。
 
 実データ連携では、`src/data/data_catalog.json` のカラムとキー候補をもとに `AreaMetric` へマッピングするローダーを追加してください。
 
@@ -191,13 +198,15 @@ npm run typecheck
 npm run build
 ```
 
-## 現時点の仮定
+## 設計・対応状況
 
-- 分析体験を優先し、市場分析値はサンプルデータです。
-- 指定フォルダの実データは棚卸しまで完了し、分析ローダーへの接続は後続実装です。
-- PDFは専用生成ではなく、ブラウザ印刷と印刷CSSで対応しています。
-- Excel出力はMVPではExcelで開けるCSV形式です。
-- 地図は外部タイルを使わないローカル表示の簡易商圏マップです。
+- 現行構成: `docs/architecture.md`
+- データソースとAPI接続方針: `docs/data-sources.md`
+- スコアと仕入上限計算: `docs/scoring.md`
+- 競合分析の正式データ要件: `docs/competitor-analysis.md`
+- 土地BANKベンチマークとの対応状況: `docs/benchmark-gap.md`
+
+現在のサンプル分析と外部レイヤーのプレビューは、Production Dataと混同しないよう表示を分けています。正式データ連携では、API契約・利用条件・地理キー・基準日を確認した上で、サーバー側Adapter/BFFへ追加してください。
 
 ## 今後の改善案
 

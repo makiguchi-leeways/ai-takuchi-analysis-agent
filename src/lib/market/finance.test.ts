@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateBorrowingCapacity,
   calculateLandAcquisitionLimit,
+  calculateProcurementCeiling,
   compareRentVsBuy,
   monthlyLoanPayment
 } from "./finance";
@@ -63,5 +64,27 @@ describe("housing finance calculators", () => {
 
   it("returns zero monthly payment when the principal is zero", () => {
     expect(monthlyLoanPayment(0, 0.011, 35)).toBe(0);
+  });
+
+  it("calculates a procurement ceiling with sensitivity-ready inputs", () => {
+    const result = calculateProcurementCeiling({
+      expectedSalePriceManYen: 9000,
+      buildingCostManYen: 3100,
+      landDevelopmentCostManYen: 180,
+      exteriorCostManYen: 220,
+      demolitionCostManYen: 0,
+      brokerageCostManYen: 180,
+      financeCostManYen: 120,
+      salesAdminCostManYen: 280,
+      taxesRegistrationCostManYen: 120,
+      targetProfitManYen: 650,
+      targetGrossMarginRate: 0.18,
+      riskAdjustmentManYen: 150,
+      landAreaTsubo: 38
+    });
+
+    expect(result.landAcquisitionLimitManYen).toBeGreaterThan(2000);
+    expect(result.landPriceLimitManYenPerTsubo).toBeGreaterThan(50);
+    expect(result.formula).toHaveLength(3);
   });
 });

@@ -51,6 +51,9 @@ describe("market scoring", () => {
     expect(result.supplyShortageScore).toBeGreaterThan(70);
     expect(result.blueOceanScore).toBeGreaterThan(result.redOceanScore);
     expect(result.quadrant).toBe("blue-ocean");
+    expect(result.demandSupplyGap).toBeGreaterThan(0);
+    expect(result.opportunityScore).toBeGreaterThan(60);
+    expect(result.scoreBreakdown.some((item) => item.key === "hazardRisk" && item.value === null)).toBe(true);
   });
 
   it("classifies liquidity and supply balance into the expected quadrant", () => {

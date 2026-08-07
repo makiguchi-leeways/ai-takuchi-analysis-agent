@@ -4,6 +4,8 @@ import type {
   ConversionPotential,
   LandAcquisitionLimitInput,
   LandAcquisitionLimitResult,
+  ProcurementCeilingInput,
+  ProcurementCeilingResult,
   RentVsBuyInput,
   RentVsBuyResult
 } from "./types";
@@ -66,6 +68,53 @@ export function calculateLandAcquisitionLimit(input: LandAcquisitionLimitInput):
     recommendedSalePriceRangeManYen: [
       Math.round(input.purchaseCapacityManYen * 0.95),
       Math.round(input.purchaseCapacityManYen * 1.05)
+    ]
+  };
+}
+
+export function calculateProcurementCeiling(input: ProcurementCeilingInput): ProcurementCeilingResult {
+  const totalCostBeforeLandManYen = round(
+    input.buildingCostManYen +
+      input.landDevelopmentCostManYen +
+      input.exteriorCostManYen +
+      input.demolitionCostManYen +
+      input.brokerageCostManYen +
+      input.financeCostManYen +
+      input.salesAdminCostManYen +
+      input.taxesRegistrationCostManYen
+  );
+  const targetProfitByMarginManYen = input.expectedSalePriceManYen * input.targetGrossMarginRate;
+  const targetProfitManYen = Math.max(input.targetProfitManYen, targetProfitByMarginManYen);
+  const landAcquisitionLimitManYen = round(
+    Math.max(
+      0,
+      input.expectedSalePriceManYen -
+        totalCostBeforeLandManYen -
+        targetProfitManYen -
+        input.riskAdjustmentManYen
+    )
+  );
+  const expectedProfitManYen = round(
+    input.expectedSalePriceManYen - totalCostBeforeLandManYen - landAcquisitionLimitManYen
+  );
+  const grossMarginRate = input.expectedSalePriceManYen > 0 ? expectedProfitManYen / input.expectedSalePriceManYen : 0;
+  const landPriceLimitManYenPerTsubo =
+    input.landAreaTsubo > 0 ? round(landAcquisitionLimitManYen / input.landAreaTsubo) : 0;
+  const safetyMarginManYen = round(
+    Math.max(0, expectedProfitManYen - targetProfitByMarginManYen - input.riskAdjustmentManYen)
+  );
+
+  return {
+    totalCostBeforeLandManYen,
+    expectedProfitManYen,
+    grossMarginRate,
+    landAcquisitionLimitManYen,
+    landPriceLimitManYenPerTsubo,
+    safetyMarginManYen,
+    formula: [
+      "土地仕入上限 = 想定総売上 − 土地以外の費用 − 目標利益 − リスク調整額",
+      `目標利益は、指定額と想定総売上×${(input.targetGrossMarginRate * 100).toFixed(1)}%の大きい方を採用`,
+      "坪単価上限 = 土地仕入上限 ÷ 土地面積"
     ]
   };
 }

@@ -1,4 +1,4 @@
-export type OpenDataLayerCategory = "population" | "household" | "income" | "rent" | "investment" | "land" | "school" | "zoning";
+export type OpenDataLayerCategory = "population" | "household" | "income" | "rent" | "investment" | "land" | "school" | "zoning" | "transport";
 
 export interface OpenDataLayerDefinition {
   id: string;
@@ -62,6 +62,16 @@ export const OPEN_DATA_LAYERS: OpenDataLayerDefinition[] = [
     color: "#5b6c2f",
     fillOpacity: 0.18,
     strokeOpacity: 0.72
+  },
+  {
+    id: "transport",
+    label: "鉄道路線・駅",
+    category: "transport",
+    dataName: "railway_transport",
+    dataSourceYear: "最新OSM",
+    color: "#475569",
+    fillOpacity: 0.08,
+    strokeOpacity: 0.9
   },
   {
     id: "elementary-school",
