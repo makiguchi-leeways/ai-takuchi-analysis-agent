@@ -26,6 +26,7 @@ import { OpenDataMarketMap, type MapFeatureSelection } from "@/components/OpenDa
 import { calculateProcurementCeiling } from "@/lib/market/finance";
 import { manYen, opportunityLabel, opportunityTone, percent, score } from "@/lib/market/format";
 import { OPEN_DATA_LAYERS } from "@/lib/market/openData";
+import { getProductCostProfile } from "@/lib/market/productCost";
 import { calculateLayerAdjustedOpportunityScore } from "@/lib/market/scoring";
 import type {
   AnalysisUnit,
@@ -208,7 +209,9 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
 
   const simulatorDefaults: ProcurementCeilingInput = {
     expectedSalePriceManYen: report.marketGap.recommendedPriceManYen,
-    buildingCostManYen: report.input.expectedBuildingPriceManYen,
+    buildingCostManYen: getProductCostProfile(report.input.productType).buildingCostApplicable
+      ? report.input.expectedBuildingPriceManYen
+      : 0,
     landDevelopmentCostManYen: 180,
     exteriorCostManYen: 220,
     demolitionCostManYen: 0,
@@ -223,6 +226,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
   };
   const [simulator, setSimulator] = useState<ProcurementCeilingInput>(simulatorDefaults);
   const procurement = useMemo(() => calculateProcurementCeiling(simulator), [simulator]);
+  const productCostProfile = useMemo(() => getProductCostProfile(form.productType), [form.productType]);
 
   function updateForm<K extends keyof SearchForm>(key: K, value: SearchForm[K]) {
     setForm((current) => {
@@ -233,6 +237,12 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
       }
       return next;
     });
+  }
+
+  function handleProductTypeChange(productType: ProductType) {
+    updateForm("productType", productType);
+    const profile = getProductCostProfile(productType);
+    setSimulator((current) => ({ ...current, buildingCostManYen: profile.buildingCostManYen }));
   }
 
   function handleSearch() {
@@ -304,7 +314,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
         <label><span>市区町村</span><select value={form.municipality} onChange={(event) => updateForm("municipality", event.target.value)}>{municipalityOptions.map((value) => <option key={value}>{value}</option>)}</select></label>
         <label><span>町名・住所</span><input value={form.address} onChange={(event) => updateForm("address", event.target.value)} placeholder="例：美しが丘1丁目" /></label>
         <label><span>駅名</span><input value={form.station} onChange={(event) => updateForm("station", event.target.value)} placeholder="駅名で絞り込み" /></label>
-        <label><span>対象商品</span><select value={form.productType} onChange={(event) => updateForm("productType", event.target.value as ProductType)}><option>分譲戸建</option><option>建売住宅</option><option>注文住宅</option><option>土地販売</option><option>中古戸建再生</option></select></label>
+        <label><span>対象商品</span><select value={form.productType} onChange={(event) => handleProductTypeChange(event.target.value as ProductType)}><option>分譲戸建</option><option>建売住宅</option><option>注文住宅</option><option>土地販売</option><option>中古戸建再生</option></select></label>
         <label><span>土地予算下限（万円）</span><input inputMode="numeric" value={form.minBudgetManYen} onChange={(event) => updateForm("minBudgetManYen", event.target.value)} /></label>
         <label><span>土地予算上限（万円）</span><input inputMode="numeric" value={form.maxBudgetManYen} onChange={(event) => updateForm("maxBudgetManYen", event.target.value)} /></label>
         <button className="procurement-search-button" onClick={handleSearch} type="button"><Search size={17} />検索</button>
@@ -365,10 +375,11 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
               <div className="drawer-section-heading"><Calculator size={16} /><h3>仕入シミュレーション</h3></div>
               <div className="simulator-grid">
                 <NumberField label="想定総売上" value={simulator.expectedSalePriceManYen} onChange={(value) => updateSimulator("expectedSalePriceManYen", value)} />
-                <NumberField label="建築原価" value={simulator.buildingCostManYen} onChange={(value) => updateSimulator("buildingCostManYen", value)} />
+                <NumberField label={productCostProfile.buildingCostApplicable ? "建築原価（万円）" : "建築原価（対象外）"} value={simulator.buildingCostManYen} onChange={(value) => updateSimulator("buildingCostManYen", value)} disabled={!productCostProfile.buildingCostApplicable} />
                 <NumberField label="土地面積（坪）" value={simulator.landAreaTsubo} onChange={(value) => updateSimulator("landAreaTsubo", value)} />
                 <NumberField label="目標粗利率（%）" value={simulator.targetGrossMarginRate * 100} onChange={(value) => updateSimulator("targetGrossMarginRate", value / 100)} step={0.5} />
               </div>
+              <small className="simulator-note">{productCostProfile.note}</small>
               <div className="ceiling-result"><span>土地仕入上限</span><strong>{manYen(procurement.landAcquisitionLimitManYen)}</strong><small>坪単価上限 {manYen(procurement.landPriceLimitManYenPerTsubo)} / 安全余裕 {manYen(procurement.safetyMarginManYen)}</small></div>
               <div className="sensitivity-table"><div className="sensitivity-head"><span>販売価格感度</span><span>想定利益</span></div>{[-10, -5, 0, 5].map((delta) => { const result = calculateProcurementCeiling({ ...simulator, expectedSalePriceManYen: simulator.expectedSalePriceManYen * (1 + delta / 100) }); return <div key={delta}><span>{delta === 0 ? "基準" : `${delta > 0 ? "+" : ""}${delta}%`}</span><b>{manYen(result.expectedProfitManYen)}</b></div>; })}</div>
             </section>
@@ -423,8 +434,8 @@ function MetricList({ items }: { items: Array<[string, string]> }) {
   return <dl className="metric-list">{items.map(([label, value]) => <div key={label}><dt>{label}</dt><dd className={value === "データなし" ? "no-data" : ""}>{value}</dd></div>)}</dl>;
 }
 
-function NumberField({ label, value, onChange, step = 1 }: { label: string; value: number; onChange: (value: number) => void; step?: number }) {
-  return <label className="number-field"><span>{label}</span><input inputMode="decimal" min="0" step={step} type="number" value={Number.isFinite(value) ? value : 0} onChange={(event) => onChange(Number(event.target.value))} /></label>;
+function NumberField({ label, value, onChange, step = 1, disabled = false }: { label: string; value: number; onChange: (value: number) => void; step?: number; disabled?: boolean }) {
+  return <label className="number-field"><span>{label}</span><input disabled={disabled} inputMode="decimal" min="0" step={step} type="number" value={Number.isFinite(value) ? value : 0} onChange={(event) => onChange(Number(event.target.value))} /></label>;
 }
 
 function resolveAreas(areas: RankedArea[], query: SearchForm) {
