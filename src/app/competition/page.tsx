@@ -89,7 +89,7 @@ export default function CompetitionPage() {
   }
 
   return <main className="business-screen">
-    <header className="procurement-header no-print"><Link className="procurement-brand" href="/"><span className="procurement-brand-mark">HM</span><span>Market Scout</span></Link><nav className="procurement-nav"><Link href="/"><Target size={16} />仕入分析</Link><Link className="active" href="/competition"><BarChart3 size={16} />競合分析</Link><Link href="/bids"><Building2 size={16} />入札情報</Link></nav><div className="procurement-header-actions"><Link href="/settings"><Settings size={16} />設定</Link></div></header>
+    <header className="procurement-header no-print"><Link className="procurement-brand" href="/"><span className="procurement-brand-mark">HM</span><span>Market Scout</span></Link><nav className="procurement-nav"><Link className="active" href="/competition"><BarChart3 size={16} />競合分析</Link><Link href="/"><Target size={16} />仕入分析</Link><Link href="/bids"><Building2 size={16} />入札情報</Link></nav><div className="procurement-header-actions"><Link href="/settings"><Settings size={16} />設定</Link></div></header>
     <section className="business-page-heading"><div><span className="eyebrow">COMPETITIVE INTELLIGENCE</span><h1>競合分析</h1><p>上場工務店の財務諸表から、仕入れから販売までの回転を同じ式で比較します。</p></div><div className="data-mode-badge"><Database size={15} />開発用サンプルデータ</div></section>
     <section className="business-content">
       <div className="business-toolbar"><label>競合企業を検索<input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="会社名" /></label><button className="secondary-button" onClick={() => setShowAddCompany((value) => !value)} type="button"><Plus size={16} />企業を追加</button></div>

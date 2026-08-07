@@ -264,11 +264,11 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
           <span>Market Scout</span>
         </Link>
         <nav className="procurement-nav" aria-label="主要メニュー">
-          <Link className="active" href="/">
-            <Target size={16} />仕入分析
-          </Link>
           <Link href="/competition">
             <BarChart3 size={16} />競合分析
+          </Link>
+          <Link className="active" href="/">
+            <Target size={16} />仕入分析
           </Link>
           <Link href="/bids">
             <Building2 size={16} />入札情報
@@ -288,7 +288,7 @@ export function MarketMapWorkspace({ report, initialSearch }: { report: MarketRe
         </div>
       </header>
 
-      {menuOpen ? <div className="mobile-menu-panel no-print"><Link href="/"><Target size={15} />仕入分析</Link><Link href="/competition"><BarChart3 size={15} />競合分析</Link><Link href="/bids"><Building2 size={15} />入札情報</Link><Link href="/settings"><Settings size={15} />設定</Link></div> : null}
+      {menuOpen ? <div className="mobile-menu-panel no-print"><Link href="/competition"><BarChart3 size={15} />競合分析</Link><Link href="/"><Target size={15} />仕入分析</Link><Link href="/bids"><Building2 size={15} />入札情報</Link><Link href="/settings"><Settings size={15} />設定</Link></div> : null}
 
       <section className="procurement-searchbar no-print">
         <div className="searchbar-title">
