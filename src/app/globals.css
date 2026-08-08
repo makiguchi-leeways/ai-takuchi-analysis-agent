@@ -787,8 +787,11 @@ td a {
   position: absolute;
   z-index: 6;
   width: min(280px, calc(100% - 20px));
-  max-height: min(58vh, 460px);
-  overflow: auto;
+  max-height: min(calc(100% - 20px), 520px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border: 1px solid color-mix(in srgb, var(--layer-color) 68%, white);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);

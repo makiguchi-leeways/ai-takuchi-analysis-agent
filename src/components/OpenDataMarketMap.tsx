@@ -139,6 +139,7 @@ export function OpenDataMarketMap({
   const [refreshToken, setRefreshToken] = useState(0);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [featureInfo, setFeatureInfo] = useState<FeatureInfoState | null>(null);
+  const featureInfoCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
 
   const view = useMemo<MapView>(() => ({ center, zoom }), [center, zoom]);
@@ -173,6 +174,8 @@ export function OpenDataMarketMap({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => () => clearFeatureInfoClose(), []);
 
   useEffect(() => {
     if (enabledLayerIds.length === 0) {
@@ -309,6 +312,7 @@ export function OpenDataMarketMap({
 
   function showFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition, event: ReactPointerEvent<SVGElement>, pinned: boolean) {
     event.stopPropagation();
+    clearFeatureInfoClose();
     const entries = collectFeatureInfo(feature, layer, event);
     const point = tooltipPosition(event);
     if (pinned) {
@@ -323,6 +327,7 @@ export function OpenDataMarketMap({
 
   function moveFeatureInfo(feature: GeoJsonFeature, layer: OpenDataLayerDefinition, event: ReactPointerEvent<SVGElement>) {
     event.stopPropagation();
+    clearFeatureInfoClose();
     setFeatureInfo((current) => {
       if (!current || current.pinned) return current;
       return {
@@ -334,14 +339,30 @@ export function OpenDataMarketMap({
   }
 
   function hideFeatureInfo() {
-    setFeatureInfo((current) => (current?.pinned ? current : null));
+    scheduleFeatureInfoClose();
+  }
+
+  function clearFeatureInfoClose() {
+    if (featureInfoCloseTimer.current) {
+      clearTimeout(featureInfoCloseTimer.current);
+      featureInfoCloseTimer.current = null;
+    }
+  }
+
+  function scheduleFeatureInfoClose() {
+    clearFeatureInfoClose();
+    featureInfoCloseTimer.current = setTimeout(() => {
+      setFeatureInfo((current) => (current?.pinned ? current : null));
+      featureInfoCloseTimer.current = null;
+    }, 220);
   }
 
   function tooltipPosition(event: ReactPointerEvent<SVGElement>) {
     const pointer = pointerPosition(event);
+    const maxPopoverHeight = Math.min(520, Math.max(180, size.height - 20));
     return {
       x: Math.max(10, Math.min(pointer.x + 14, size.width - 290)),
-      y: Math.max(10, Math.min(pointer.y + 14, size.height - 190))
+      y: Math.max(10, Math.min(pointer.y + 14, size.height - maxPopoverHeight - 10))
     };
   }
 
@@ -464,6 +485,10 @@ export function OpenDataMarketMap({
         {featureInfo ? (
           <div
             className={`geo-feature-popover${featureInfo.pinned ? " pinned" : ""}`}
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerEnter={clearFeatureInfoClose}
+            onPointerLeave={hideFeatureInfo}
+            onWheel={(event) => event.stopPropagation()}
             style={{ left: featureInfo.x, top: featureInfo.y, "--layer-color": featureInfo.entries[0]?.layer.color ?? "#12665d" } as CSSProperties}
           >
             <div className="geo-feature-popover-head">
